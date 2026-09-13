@@ -31,7 +31,7 @@ prisma.$use(async (params, next) => {
     const ms = performance.now() - start;
     if (ms > SLOW_QUERY_MS) {
       try {
-        const { recordSlowQuery } = await import("../utils/metrics");
+        const { recordSlowQuery } = await import("../utils/metrics.js");
         recordSlowQuery();
       } catch {
         // Metrics must never break queries.

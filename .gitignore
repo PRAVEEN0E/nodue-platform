@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets — NEVER commit real credentials
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Build output
+dist/
+.next/
+out/
+build/
+
+# Prisma
+prisma/migrations/**/migration.sql.lock
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

@@ -1,0 +1,327 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  HOD
+  ADVISOR
+  STAFF
+  STUDENT
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum FeeStatus {
+  PENDING
+  PAID
+  PARTIAL
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role
+  departmentId String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Department relationship (members of department)
+  department   Department?   @relation("DepartmentMembers", fields: [departmentId], references: [id], onDelete: SetNull)
+
+  // Enforces at database level: only one HOD can belong to a department
+  hodDepartment Department?  @relation("DepartmentHOD")
+
+  // Profiles based on role
+  advisorProfile Advisor?
+  studentProfile Student?
+  staffProfile   Staff?
+
+  // Audit and security
+  auditLogs      AuditLog[]
+  refreshTokens  RefreshToken[]
+  approvalsGiven Approval[]     @relation("ApproverUser")
+
+  @@index([role])
+  @@index([departmentId])
+  @@index([email])
+}
+
+model Department {
+  id        String      @id @default(uuid())
+  code      String      @unique // AIML, AIDS, CSE, IT, MECH, BME, MDE, CIVIL, CYBER SECURITY, ECE, EEE
+  name      String
+  
+  // Database-enforced rule: Only one HOD can belong to a department
+  hodUserId String?     @unique
+  hodUser   User?       @relation("DepartmentHOD", fields: [hodUserId], references: [id], onDelete: SetNull)
+
+  users      User[]      @relation("DepartmentMembers")
+  classrooms Classroom[]
+  students   Student[]
+  staff      Staff[]
+  subjects   Subject[]
+  auditLogs  AuditLog[]
+
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([code])
+}
+
+model Classroom {
+  id           String     @id @default(uuid())
+  name         String
+  batch        String     // e.g., "2023-2027"
+  semester     Int
+  section      String     // e.g., "A", "B"
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  advisor   Advisor?
+  students  Student[]
+  subjects  Subject[]
+  staff     Staff[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([departmentId, name])
+  @@unique([departmentId, batch, semester, section])
+  @@index([departmentId])
+}
+
+model Advisor {
+  id          String     @id @default(uuid())
+  userId      String     @unique
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classroomId String?    @unique
+  classroom   Classroom? @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+
+  assignedAt DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([classroomId])
+}
+
+model Student {
+  id             String     @id @default(uuid())
+  userId         String     @unique
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registerNumber String     @unique
+  rollNumber     String?    @unique
+  classroomId    String
+  classroom      Classroom  @relation(fields: [classroomId], references: [id], onDelete: Restrict)
+  departmentId   String
+  department     Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  admissionYear  Int
+
+  // Phase 7: derived by the approval engine only. True iff all subjects
+  // staff-approved AND advisor-approved AND hod-approved AND fee condition
+  // (advisor OR hod fee approval) satisfied. Monotonic: never reset.
+  isVerified Boolean   @default(false)
+  verifiedAt DateTime?
+
+  approvals Approval[]
+  fees      Fee[]
+  feeVerification FeeVerification?
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([classroomId])
+  @@index([departmentId])
+  @@index([registerNumber])
+}
+
+model Staff {
+  id           String     @id @default(uuid())
+  userId       String     @unique
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeCode String     @unique
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  // Classroom that owns this staff member (set at advisor creation and
+  // adopted when an advisor maps an unassigned staff member). Advisor staff
+  // operations are scoped to this classroom so staff remain visible only to
+  // the advisor of their own classroom. NULL = unassigned pool (visible to
+  // no advisor until adopted by a classroom).
+  classroomId  String?
+  classroom    Classroom? @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+  designation  String
+
+  subjectStaff SubjectStaff[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([departmentId])
+  @@index([classroomId])
+  @@index([employeeCode])
+}
+
+model Subject {
+  id           String     @id @default(uuid())
+  code         String     @unique
+  name         String
+  credits      Int        @default(3)
+  semester     Int
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  classroomId  String?
+  classroom    Classroom? @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+
+  subjectStaff SubjectStaff[]
+  approvals    Approval[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([departmentId])
+  @@index([classroomId])
+  @@index([code])
+}
+
+// Maps staff to the subjects they handle. Staff are college-wide: advisors
+// may map staff and subjects into their own classroom scope (the subject must
+// belong to the advisor's classroom). The staff member's teaching scope is
+// derived purely from these assignments — never from the staff member's home
+// department. The unique constraint prevents duplicate assignment of the same
+// staff member to the same subject.
+model SubjectStaff {
+  id        String  @id @default(uuid())
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  staffId   String
+  staff     Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([subjectId, staffId])
+  @@index([subjectId])
+  @@index([staffId])
+}
+
+// Fee verification state (simple OR workflow, NOT financial accounting).
+// Exactly one row per student, created on first approval. VERIFIED iff
+// advisorApproved OR hodApproved. The legacy per-record Fee.advisorApproved /
+// hodApproved flags are superseded by this table for verification purposes.
+model FeeVerification {
+  id              String   @id @default(uuid())
+  studentId       String   @unique
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  advisorApproved Boolean  @default(false)
+  hodApproved     Boolean  @default(false)
+  advisorById     String?
+  hodById         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+}
+
+model Approval {
+  id             String         @id @default(uuid())
+  studentId      String
+  student        Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  approverRole   Role
+  approverUserId String?
+  approverUser   User?          @relation("ApproverUser", fields: [approverUserId], references: [id], onDelete: SetNull)
+  // Phase 5: staff subject-level decisions reference the subject. Null for
+  // legacy / future non-subject approvals (NULLs stay distinct in the unique
+  // constraint, so existing rows are unaffected).
+  subjectId      String?
+  subject        Subject?       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  status         ApprovalStatus @default(PENDING)
+  remarks        String?
+
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([studentId, subjectId, approverRole])
+  @@index([studentId])
+  @@index([status])
+  @@index([approverRole])
+  @@index([approverUserId])
+  @@index([subjectId])
+  // Hot path: decided-approval lists filter subject + role + status.
+  @@index([subjectId, approverRole, status])
+}
+
+model Fee {
+  id          String    @id @default(uuid())
+  studentId   String
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title       String
+  totalAmount Decimal   @db.Decimal(10, 2)
+  paidAmount  Decimal   @default(0.00) @db.Decimal(10, 2)
+  status      FeeStatus @default(PENDING)
+  dueDate     DateTime?
+
+  // Phase 7 fee approval (OR logic): set exclusively through the approval
+  // engine by the owning role. Payment status is orthogonal.
+  advisorApproved Boolean @default(false)
+  hodApproved     Boolean @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([studentId])
+  @@index([status])
+  // Hot path: scoped fee lists filter student (+classroom via join) + status.
+  @@index([studentId, status])
+}
+
+model AuditLog {
+  id           String      @id @default(uuid())
+  actorUserId  String?
+  actorUser    User?       @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  action       String      // e.g. "AUTH_LOGIN", "HOD_CREATED", "CLASSROOM_CREATED"
+  entityType   String      // e.g. "User", "Department", "Classroom"
+  entityId     String?
+  metadata     Json?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime    @default(now())
+
+  @@index([actorUserId])
+  @@index([departmentId])
+  @@index([createdAt])
+  @@index([departmentId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
+}

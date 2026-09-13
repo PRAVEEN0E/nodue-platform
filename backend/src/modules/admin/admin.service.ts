@@ -1,0 +1,350 @@
+import { adminRepository } from "./admin.repository";
+import { cacheService } from "../../plugins/redis";
+import { auditService } from "../../utils/auditService";
+import { hashPassword } from "../../utils/password";
+import { ConflictError, NotFoundError, ForbiddenError } from "../../utils/errors";
+import {
+  CreateHodInput,
+  GetUsersQuery,
+  GetHodsQuery,
+  GetAuditLogsQuery,
+  UpdateHodStatusInput,
+  CreateStaffInput,
+  UpdateStaffInput,
+  GetStaffQuery,
+} from "./admin.schema";
+
+const CACHE_KEYS = {
+  dashboard: "cache:admin:dashboard",
+  departments: "cache:admin:departments",
+  departmentsList: "cache:departments:list", // shared with public endpoint
+};
+
+export const adminService = {
+  // ─── Dashboard ─────────────────────────────────────────────────────────────
+
+  async getDashboardStats() {
+    const cached = await cacheService.get(CACHE_KEYS.dashboard);
+    if (cached) return cached;
+
+    const stats = await adminRepository.getDashboardMetrics();
+    await cacheService.set(CACHE_KEYS.dashboard, stats, 60); // 60-second TTL
+    return stats;
+  },
+
+  // ─── Departments ───────────────────────────────────────────────────────────
+
+  async getDepartments() {
+    const cached = await cacheService.get(CACHE_KEYS.departments);
+    if (cached) return cached;
+
+    const departments = await adminRepository.getDepartmentsWithStats();
+    await cacheService.set(CACHE_KEYS.departments, departments, 3600); // 1-hour TTL
+    return departments;
+  },
+
+  // ─── HOD Management ────────────────────────────────────────────────────────
+
+  async getHods(filters: GetHodsQuery) {
+    return adminRepository.getHods(filters);
+  },
+
+  async createHod(
+    input: CreateHodInput,
+    actorUserId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
+    // 1. Verify department exists
+    const department = await adminRepository.findDepartmentById(input.departmentId);
+    if (!department) {
+      throw new NotFoundError(`Department not found`);
+    }
+
+    // 2. Enforce one-HOD-per-department rule at service layer (database constraint is final guard)
+    if (department.hodUserId) {
+      throw new ConflictError(
+        `This department already has an HOD. A department cannot have more than one HOD.`
+      );
+    }
+
+    // 3. Verify email uniqueness
+    const existingUser = await adminRepository.findUserByEmail(input.email);
+    if (existingUser) {
+      throw new ConflictError(`A user with email '${input.email}' already exists.`);
+    }
+
+    // 4. Hash password with Argon2id (never store plaintext)
+    const passwordHash = await hashPassword(input.password);
+
+    // 5. Execute atomic transaction: create user + assign department HOD
+    let newHod;
+    try {
+      newHod = await adminRepository.createHodWithDepartmentAssignment({
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email,
+        passwordHash,
+        departmentId: input.departmentId,
+      });
+    } catch (err: unknown) {
+      // Handle PostgreSQL unique constraint violation (P2002) from the hodUserId unique field
+      // This is the race condition safety net — catches concurrent requests that both pass the
+      // service-layer check but then race to the DB transaction
+      const prismaErr = err as { code?: string; meta?: { target?: string[] }; message?: string };
+      if (
+        prismaErr.code === "P2002" &&
+        prismaErr.meta?.target?.includes("hodUserId")
+      ) {
+        throw new ConflictError("This department already has an HOD.");
+      }
+      if (prismaErr.code === "P2002") {
+        throw new ConflictError("A user with this email already exists.");
+      }
+      // PostgreSQL deadlock (40P01): two concurrent transactions deadlocked; the loser should
+      // surface as a ConflictError because the winner will have secured the HOD slot
+      if (prismaErr.message?.includes("deadlock detected")) {
+        throw new ConflictError("This department already has an HOD.");
+      }
+      throw err;
+    }
+
+    // 6. Invalidate all relevant caches
+    await Promise.all([
+      cacheService.del(CACHE_KEYS.dashboard),
+      cacheService.del(CACHE_KEYS.departments),
+      cacheService.del(CACHE_KEYS.departmentsList),
+    ]);
+
+    // 7. Record audit event (non-blocking)
+    await auditService.log({
+      actorUserId,
+      action: "HOD_CREATED",
+      entityType: "User",
+      entityId: newHod.id,
+      metadata: {
+        hodEmail: newHod.email,
+        departmentId: input.departmentId,
+        departmentCode: department.code,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return newHod;
+  },
+
+  async updateHodStatus(
+    hodId: string,
+    input: UpdateHodStatusInput,
+    actorUserId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
+    // Will throw Prisma P2025 (not found) if ID doesn't exist or isn't an HOD
+    const updatedUser = await adminRepository.updateUserStatus(hodId, input.isActive);
+
+    // Invalidate the specific user's active state from Redis cache (forces re-verification on next request)
+    await cacheService.del(`user:active:${hodId}`);
+    await cacheService.del(CACHE_KEYS.dashboard);
+
+    const action = input.isActive ? "HOD_ACTIVATED" : "HOD_DEACTIVATED";
+    await auditService.log({
+      actorUserId,
+      action,
+      entityType: "User",
+      entityId: hodId,
+      metadata: { isActive: input.isActive },
+      ipAddress,
+      userAgent,
+    });
+
+    return updatedUser;
+  },
+
+  // ─── Users ─────────────────────────────────────────────────────────────────
+
+  async getUsers(query: GetUsersQuery) {
+    return adminRepository.getPaginatedUsers(query);
+  },
+
+  // ─── Staff Management (ADMIN-only lifecycle) ────────────────────────────────
+  // Staff account CRUD belongs exclusively to Admin. Advisors may only assign
+  // existing staff through subject-staff mapping (advisor module). Department
+  // changes are limited to unassigned staff to preserve classroom integrity.
+
+  async getStaff(filters: GetStaffQuery) {
+    return adminRepository.getStaff(filters);
+  },
+
+  async createStaff(
+    input: CreateStaffInput,
+    actorUserId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
+    const department = await adminRepository.findDepartmentById(input.departmentId);
+    if (!department) {
+      throw new NotFoundError("Department not found.");
+    }
+
+    const [emailTaken, codeTaken] = await Promise.all([
+      adminRepository.findUserByEmail(input.email),
+      adminRepository.findStaffByEmployeeCode(input.employeeCode),
+    ]);
+    if (emailTaken) {
+      throw new ConflictError(`A user with email '${input.email}' already exists.`);
+    }
+    if (codeTaken) {
+      throw new ConflictError(
+        `A staff member with employee code '${input.employeeCode}' already exists.`
+      );
+    }
+
+    const passwordHash = await hashPassword(input.password);
+
+    let created: { staffId: string; userId: string };
+    try {
+      created = await adminRepository.createStaffAccount({ ...input, passwordHash });
+    } catch (err: unknown) {
+      const prismaErr = err as { code?: string };
+      if (prismaErr.code === "P2002") {
+        throw new ConflictError("A staff member with these unique details already exists.");
+      }
+      throw err;
+    }
+
+    await Promise.all([
+      cacheService.del(CACHE_KEYS.dashboard),
+      cacheService.del(CACHE_KEYS.departments),
+      cacheService.del(CACHE_KEYS.departmentsList),
+    ]);
+
+    await auditService.log({
+      actorUserId,
+      departmentId: input.departmentId,
+      action: "STAFF_CREATED",
+      entityType: "Staff",
+      entityId: created.staffId,
+      metadata: { email: input.email, employeeCode: input.employeeCode },
+      ipAddress,
+      userAgent,
+    });
+
+    return adminRepository.findStaffById(created.staffId);
+  },
+
+  async updateStaff(
+    staffId: string,
+    input: UpdateStaffInput,
+    actorUserId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
+    const staff = await adminRepository.findStaffById(staffId);
+    if (!staff) {
+      throw new NotFoundError("Staff member not found.");
+    }
+
+    if (input.email && input.email !== staff.user.email) {
+      const taken = await adminRepository.findUserByEmail(input.email);
+      if (taken) {
+        throw new ConflictError(`A user with email '${input.email}' already exists.`);
+      }
+    }
+
+    if (input.departmentId && input.departmentId !== staff.departmentId) {
+      if (staff.classroomId) {
+        throw new ForbiddenError(
+          "This staff member is assigned to a classroom. Unassign them before changing their department."
+        );
+      }
+    }
+
+    await adminRepository.updateStaffUser(staff.userId, {
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+      departmentId: input.departmentId,
+      isActive: input.isActive,
+    });
+    await adminRepository.updateStaffProfile(staffId, {
+      designation: input.designation,
+      departmentId: input.departmentId,
+    });
+
+    await Promise.all([
+      cacheService.del(CACHE_KEYS.dashboard),
+      cacheService.del(CACHE_KEYS.departments),
+      cacheService.del(CACHE_KEYS.departmentsList),
+    ]);
+
+    const isActiveChanged = input.isActive !== undefined && input.isActive !== staff.user.isActive;
+    const action = isActiveChanged
+      ? input.isActive
+        ? "STAFF_ACTIVATED"
+        : "STAFF_DEACTIVATED"
+      : "STAFF_UPDATED";
+    await auditService.log({
+      actorUserId,
+      departmentId: staff.departmentId,
+      action,
+      entityType: "Staff",
+      entityId: staffId,
+      metadata: {
+        ...(input.email !== undefined && { email: input.email }),
+        ...(input.isActive !== undefined && { isActive: input.isActive }),
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return adminRepository.findStaffById(staffId);
+  },
+
+  async deleteStaff(
+    staffId: string,
+    actorUserId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
+    const staff = await adminRepository.findStaffById(staffId);
+    if (!staff) {
+      throw new NotFoundError("Staff member not found.");
+    }
+
+    const mappings = await adminRepository.countStaffMappings(staffId);
+    if (mappings > 0) {
+      throw new ConflictError(
+        "This staff member has active subject assignments. Remove the assignments before deleting the account."
+      );
+    }
+
+    await adminRepository.deleteStaffAccount(staff.userId);
+
+    await Promise.all([
+      cacheService.del(CACHE_KEYS.dashboard),
+      cacheService.del(CACHE_KEYS.departments),
+      cacheService.del(CACHE_KEYS.departmentsList),
+    ]);
+
+    await auditService.log({
+      actorUserId,
+      departmentId: staff.departmentId,
+      action: "STAFF_DELETED",
+      entityType: "Staff",
+      entityId: staffId,
+      metadata: { email: staff.user.email, employeeCode: staff.employeeCode },
+      ipAddress,
+      userAgent,
+    });
+
+    return { id: staffId };
+  },
+
+  // ─── Audit Logs ────────────────────────────────────────────────────────────
+
+  async getAuditLogs(query: GetAuditLogsQuery) {
+    return adminRepository.getPaginatedAuditLogs(query);
+  },
+};

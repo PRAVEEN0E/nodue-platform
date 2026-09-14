@@ -5,6 +5,7 @@ import { User } from "../types/auth";
 import { apiClient } from "../lib/api";
 import { useRouter } from "next/navigation";
 import { getRoleHome } from "../components/auth/ProtectedRoute";
+import { setSessionCookie, clearSessionCookie } from "../lib/session-cookie";
 
 interface AuthContextType {
   user: User | null;
@@ -37,11 +38,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const res = await apiClient<{ success: boolean; data: { user: User } }>("/auth/me");
       if (res.success && res.data.user) {
+        // Keep the frontend-domain session cookie in sync so Next.js
+        // middleware can read the role without needing the HttpOnly JWT.
+        setSessionCookie(res.data.user.role);
         setUser(res.data.user);
       } else {
+        clearSessionCookie();
         setUser(null);
       }
     } catch {
+      clearSessionCookie();
       setUser(null);
     } finally {
       setLoading(false);
@@ -61,6 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (res.success && res.data.user) {
+        // Set the frontend-domain session cookie immediately so the
+        // Next.js middleware sees the role on the very first navigation.
+        setSessionCookie(res.data.user.role);
         setUser(res.data.user);
         setLoading(false);
         router.replace(getRoleHome(res.data.user.role));
@@ -77,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.warn("Logout error:", err);
     } finally {
+      clearSessionCookie();
       setUser(null);
       setLoading(false);
       router.replace("/login");

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState, useCallback } from "react";
 import { getStudentStatus, StudentStatusSnapshot } from "@/lib/student-api";
@@ -92,7 +92,7 @@ export default function StudentStatusPage() {
     load();
   }, [load]);
 
-  if (loading) return <PageLoader label="Loading verification statusâ€¦" />;
+  if (loading) return <PageLoader label="Loading verification status..." />;
 
   if (error || !status) {
     return (

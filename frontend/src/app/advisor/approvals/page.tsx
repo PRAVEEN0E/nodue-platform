@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState, useCallback } from "react";
 import {
@@ -121,7 +121,7 @@ export default function AdvisorApprovalsPage() {
           <Search className="nd-search-icon" style={{ width: 16, height: 16 }} />
           <input
             className="nd-input nd-search-input"
-            placeholder="Search by student name or register numberâ€¦"
+            placeholder="Search by student name or register number..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             aria-label="Search approvals"
@@ -194,7 +194,7 @@ export default function AdvisorApprovalsPage() {
                       <td className="nd-cell-secondary">
                         {!isDecided(row)
                           ? row.subjects.map((s) => s.code).join(", ")
-                          : "â€”"}
+                          : "—"}
                       </td>
                       <td>
 <StatusBadge status={row.status} />
@@ -241,7 +241,7 @@ export default function AdvisorApprovalsPage() {
       {acting && (
         <Modal
           title={`Confirm ${decision === "APPROVED" ? "approval" : "rejection"}`}
-          description={`${acting.student.user.firstName} ${acting.student.user.lastName} (${acting.student.registerNumber}) Â· ${acting.subjects.length} subject${acting.subjects.length !== 1 ? "s" : ""} staff-approved`}
+          description={`${acting.student.user.firstName} ${acting.student.user.lastName} (${acting.student.registerNumber}) · ${acting.subjects.length} subject${acting.subjects.length !== 1 ? "s" : ""} staff-approved`}
           onClose={() => setActing(null)}
           footer={
             <>
@@ -253,7 +253,7 @@ export default function AdvisorApprovalsPage() {
                 disabled={submitting}
               >
                 {submitting && <ButtonSpinner />}
-                {submitting ? "Savingâ€¦" : decision === "APPROVED" ? "Confirm Approval" : "Confirm Rejection"}
+                {submitting ? "Saving..." : decision === "APPROVED" ? "Confirm Approval" : "Confirm Rejection"}
               </Button>
             </>
           }

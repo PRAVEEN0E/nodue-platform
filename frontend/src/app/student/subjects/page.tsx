@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState, useCallback } from "react";
 import { getStudentSubjects, StudentSubject } from "@/lib/student-api";
@@ -65,7 +65,7 @@ export default function StudentSubjectsPage() {
           <Search className="nd-search-icon" style={{ width: 16, height: 16 }} />
           <input
             className="nd-input nd-search-input"
-            placeholder="Search by subject name or codeâ€¦"
+            placeholder="Search by subject name or code..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             aria-label="Search subjects"
@@ -119,11 +119,11 @@ export default function StudentSubjectsPage() {
                       <td><span className="nd-code">{s.code}</span></td>
                       <td>
                         <div className="nd-cell-primary">{s.name}</div>
-                        <div className="nd-cell-secondary">Sem {s.semester} Â· {s.credits} credits</div>
+                        <div className="nd-cell-secondary">Sem {s.semester} · {s.credits} credits</div>
                       </td>
                       <td className="nd-cell-secondary">
                         {s.subjectStaff.length === 0
-                          ? "â€”"
+                          ? "—"
                           : s.subjectStaff.map((m) => `${m.staff.user.firstName} ${m.staff.user.lastName}`).join(", ")}
                       </td>
                       <td><DecisionBadge status={decision} /></td>

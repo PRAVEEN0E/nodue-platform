@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState, useCallback } from "react";
 import {
@@ -121,7 +121,7 @@ export default function HodApprovalsPage() {
           <Search className="nd-search-icon" style={{ width: 16, height: 16 }} />
           <input
             className="nd-input nd-search-input"
-            placeholder="Search by student name or register numberâ€¦"
+            placeholder="Search by student name or register number..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             aria-label="Search approvals"
@@ -237,7 +237,7 @@ export default function HodApprovalsPage() {
       {acting && (
         <Modal
           title={`Confirm ${decision === "APPROVED" ? "approval" : "rejection"}`}
-          description={`${acting.student.user.firstName} ${acting.student.user.lastName} (${acting.student.registerNumber}) Â· advisor-approved`}
+          description={`${acting.student.user.firstName} ${acting.student.user.lastName} (${acting.student.registerNumber}) · advisor-approved`}
           onClose={() => setActing(null)}
           footer={
             <>
@@ -249,7 +249,7 @@ export default function HodApprovalsPage() {
                 disabled={submitting}
               >
                 {submitting && <ButtonSpinner />}
-                {submitting ? "Savingâ€¦" : decision === "APPROVED" ? "Confirm Approval" : "Confirm Rejection"}
+                {submitting ? "Saving..." : decision === "APPROVED" ? "Confirm Approval" : "Confirm Rejection"}
               </Button>
             </>
           }

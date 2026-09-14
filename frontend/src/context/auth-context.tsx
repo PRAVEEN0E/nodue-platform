@@ -25,14 +25,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = useCallback(async () => {
     try {
       // On the login entry point there is no session context by definition:
-      // surface the 401 directly instead of attempting a doomed refresh,
-      // which only produces console noise. Everywhere else the standard
-      // single-refresh recovery still applies. (Runs post-mount only.)
+      // skip probing /auth/me to prevent unauthenticated 401 console noise.
+      // Server-side middleware already redirects authenticated visitors.
       const onLoginPage =
         typeof window !== "undefined" && window.location.pathname === "/login";
-      const res = await apiClient<{ success: boolean; data: { user: User } }>("/auth/me", {
-        skipRefresh: onLoginPage,
-      });
+      if (onLoginPage) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      const res = await apiClient<{ success: boolean; data: { user: User } }>("/auth/me");
       if (res.success && res.data.user) {
         setUser(res.data.user);
       } else {

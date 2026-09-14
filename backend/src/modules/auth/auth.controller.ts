@@ -4,6 +4,8 @@ import { LoginInput } from "./auth.schema";
 import { env } from "../../config/env";
 
 const isProduction = env.NODE_ENV === "production";
+const cookieSameSite = (env.COOKIE_SAME_SITE || (isProduction ? "none" : "lax")) as "none" | "lax" | "strict";
+const cookieSecure = cookieSameSite === "none" ? true : isProduction;
 
 export const authController = {
   async login(request: FastifyRequest<{ Body: LoginInput }>, reply: FastifyReply) {
@@ -27,16 +29,16 @@ export const authController = {
     reply.setCookie("access_token", accessToken, {
       path: "/",
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "strict" : "lax",
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
       maxAge: 15 * 60, // 15 minutes in seconds
     });
 
     reply.setCookie("refresh_token", rawRefreshToken, {
       path: "/api/v1/auth",
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "strict" : "lax",
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
       maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
     });
 
@@ -85,16 +87,16 @@ export const authController = {
     reply.setCookie("access_token", newAccessToken, {
       path: "/",
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "strict" : "lax",
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
       maxAge: 15 * 60,
     });
 
     reply.setCookie("refresh_token", newRawRefreshToken, {
       path: "/api/v1/auth",
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "strict" : "lax",
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
       maxAge: 7 * 24 * 60 * 60,
     });
 
@@ -114,9 +116,19 @@ export const authController = {
 
     await authService.logout(rawRefreshToken, userId, ipAddress, userAgent);
 
-    // Clear authentication cookies
-    reply.clearCookie("access_token", { path: "/" });
-    reply.clearCookie("refresh_token", { path: "/api/v1/auth" });
+    // Clear authentication cookies with identical path, secure, sameSite flags
+    reply.clearCookie("access_token", {
+      path: "/",
+      httpOnly: true,
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
+    });
+    reply.clearCookie("refresh_token", {
+      path: "/api/v1/auth",
+      httpOnly: true,
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
+    });
 
     return reply.status(200).send({
       success: true,

@@ -15,6 +15,8 @@ const envSchema = z.object({
   HOST: z.string().default("0.0.0.0"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
+  // Cross-site cookie configuration: "none" for cross-domain HTTPS, or "lax"/"strict"
+  COOKIE_SAME_SITE: z.enum(["strict", "lax", "none"]).optional(),
   // Comma-separated IPs bypassing rate limits (local dev/E2E default).
   // Set to "" to enforce limits everywhere (shared staging, prod-like tests).
   RATE_LIMIT_ALLOWLIST: z.string().optional(),

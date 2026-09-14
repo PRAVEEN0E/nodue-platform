@@ -27,7 +27,8 @@ import { studentRoutes } from "./modules/student/student.routes";
 // staging must set CORS_ORIGIN explicitly; credentialed requests never
 // use a wildcard.
 function allowedOrigins(): string[] {
-  const origins = [env.CORS_ORIGIN];
+  const configured = env.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean);
+  const origins = [...configured];
   if (env.NODE_ENV !== "production") {
     origins.push("http://localhost:3000", "http://127.0.0.1:3000");
   }

@@ -2,8 +2,26 @@ import { buildApp } from "./app";
 import { env } from "./config/env";
 import { connectDatabase, disconnectDatabase } from "./plugins/database";
 import { connectRedis, disconnectRedis } from "./plugins/redis";
+import { execSync } from "child_process";
 
 async function bootstrap() {
+  // 0. Apply any pending database migrations before anything else.
+  //    This runs regardless of how the process is invoked (npm start,
+  //    node dist/server.js, Render start command, etc.).
+  if (env.NODE_ENV !== "test") {
+    try {
+      console.log("⏳ Running database migrations...");
+      execSync("npx prisma migrate deploy", {
+        stdio: "inherit",
+        env: { ...process.env },
+      });
+      console.log("✅ Database migrations applied successfully");
+    } catch (err) {
+      console.error("❌ Failed to apply database migrations:", err);
+      process.exit(1);
+    }
+  }
+
   const app = buildApp();
 
   // 1. Establish resilient infrastructure connections

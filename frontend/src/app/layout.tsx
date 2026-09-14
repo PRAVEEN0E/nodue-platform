@@ -16,14 +16,16 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: "NoDue | Academic Clearance & University Management Platform",
-    template: "%s | NoDue",
+    default: "NDCP | No Due Clearance Portal — One Portal. Zero Pending.",
+    template: "%s | NDCP",
   },
   description:
-    "Next-generation university academic clearance and administration platform. Streamline student clearance workflows, departmental approvals, digital no-due certificates, and institutional governance.",
-  applicationName: "NoDue Academic Platform",
+    "NDCP (No Due Clearance Portal) — One Portal. Zero Pending. Next-generation university academic clearance and administration platform for automated student clearances, departmental sign-offs, and institutional transparency.",
+  applicationName: "NDCP - No Due Clearance Portal",
   keywords: [
-    "NoDue",
+    "NDCP",
+    "No Due Clearance Portal",
+    "One Portal Zero Pending",
     "academic clearance system",
     "student no due certificate",
     "university clearance portal",
@@ -33,9 +35,9 @@ export const metadata: Metadata = {
     "hall ticket clearance",
     "university management platform",
   ],
-  authors: [{ name: "NoDue Team" }],
-  creator: "NoDue Academic Platform",
-  publisher: "NoDue",
+  authors: [{ name: "NDCP Team" }],
+  creator: "NDCP Academic Platform",
+  publisher: "NDCP",
   verification: {
     google: "7mRLU3RClqs7gIZx9zoQL6DrMrjfo__SR5zfr_-5Om8",
   },
@@ -43,16 +45,16 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: APP_URL,
-    siteName: "NoDue Academic Platform",
-    title: "NoDue | Academic Clearance & University Management Platform",
+    siteName: "NDCP - No Due Clearance Portal",
+    title: "NDCP | No Due Clearance Portal — One Portal. Zero Pending.",
     description:
-      "Automate student clearances, track departmental approvals, and streamline academic administrative workflows with instant verification.",
+      "NDCP — One Portal. Zero Pending. Automate student clearances, track departmental approvals, and streamline academic administrative workflows.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "NoDue | Academic Clearance & University Management Platform",
+    title: "NDCP | No Due Clearance Portal — One Portal. Zero Pending.",
     description:
-      "Automate student clearances, track departmental approvals, and streamline academic administrative workflows.",
+      "NDCP — One Portal. Zero Pending. Automate student clearances, track departmental approvals, and streamline academic administrative workflows.",
   },
   robots: {
     index: true,
@@ -73,12 +75,12 @@ export const metadata: Metadata = {
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "NoDue",
+  name: "NDCP - No Due Clearance Portal",
   applicationCategory: "EducationalApplication",
   operatingSystem: "Web",
   url: APP_URL,
   description:
-    "Next-generation academic clearance and management platform for colleges and universities to automate student sign-offs and approvals.",
+    "NDCP (No Due Clearance Portal) — One Portal. Zero Pending. Next-generation academic clearance and management platform for colleges and universities to automate student sign-offs and approvals.",
   offers: {
     "@type": "Offer",
     price: "0",

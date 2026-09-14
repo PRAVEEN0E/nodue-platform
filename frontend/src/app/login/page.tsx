@@ -55,15 +55,18 @@ export default function LoginPage() {
             <GraduationCap style={{ width: 22, height: 22 }} />
           </div>
           <div>
-            <div className="nd-brand-name">NoDue</div>
-            <div className="nd-brand-sub">Academic Management</div>
+            <div className="nd-brand-name">NDCP</div>
+            <div className="nd-brand-sub">No Due Clearance Portal</div>
           </div>
         </div>
 
         <h1 style={{ fontSize: 22, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em" }}>
           Welcome back
         </h1>
-        <p style={{ fontSize: 14, color: "#64748b", marginTop: 4, marginBottom: 22 }}>
+        <p style={{ fontSize: 13, color: "#2563eb", fontWeight: 600, letterSpacing: "0.01em", marginTop: 4, marginBottom: 2 }}>
+          One Portal. Zero Pending.
+        </p>
+        <p style={{ fontSize: 14, color: "#64748b", marginBottom: 22 }}>
           Sign in to continue to your workspace.
         </p>
 

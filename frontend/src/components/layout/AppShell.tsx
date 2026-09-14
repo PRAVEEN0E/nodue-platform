@@ -81,8 +81,8 @@ export default function AppShell({
               <GraduationCap style={{ width: 20, height: 20 }} />
             </div>
             <div>
-              <div className="nd-brand-name">NoDue</div>
-              <div className="nd-brand-sub">Academic Management</div>
+              <div className="nd-brand-name">NDCP</div>
+              <div className="nd-brand-sub">No Due Clearance Portal</div>
             </div>
             <button
               className="nd-icon-btn nd-sidebar-close"
@@ -149,7 +149,7 @@ export default function AppShell({
                 <Menu style={{ width: 18, height: 18 }} />
               </button>
               <span className="nd-topbar-title">
-                NoDue
+                NDCP
                 {crumbs.map((c, i) => (
                   <span key={i}>
                     {"  /  "}

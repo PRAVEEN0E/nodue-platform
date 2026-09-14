@@ -2,9 +2,9 @@ import { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "NoDue Academic Clearance Platform",
-    short_name: "NoDue",
-    description: "Automated student clearance workflows, departmental approvals, and digital sign-offs.",
+    name: "NDCP - No Due Clearance Portal",
+    short_name: "NDCP",
+    description: "NDCP — One Portal. Zero Pending. Automated student clearance workflows and digital sign-offs.",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

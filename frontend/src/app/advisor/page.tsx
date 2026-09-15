@@ -14,12 +14,19 @@ import {
   RefreshCw,
   Wallet,
   FileSpreadsheet,
+  FileText,
   Download,
+  Loader2,
 } from "lucide-react";
 import { PageHeader, StatCard, Card, Button, Badge } from "@/components/ui/controls";
 import { PageLoader, ErrorState, ActivityList } from "@/components/ui/feedback";
 import { humanizeActivity } from "@/lib/activity";
-import { downloadAdvisorDefaultersReport, downloadAdvisorClearanceReport } from "@/lib/bulk-api";
+import {
+  downloadAdvisorDefaultersReport,
+  downloadAdvisorClearanceReport,
+  downloadAdvisorDefaultersPdf,
+  downloadAdvisorClearancePdf,
+} from "@/lib/bulk-api";
 
 export default function AdvisorDashboardPage() {
   const { user } = useAuth();
@@ -29,6 +36,8 @@ export default function AdvisorDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [exportingDefaulters, setExportingDefaulters] = useState(false);
   const [exportingClearance, setExportingClearance] = useState(false);
+  const [exportingDefaultersPdf, setExportingDefaultersPdf] = useState(false);
+  const [exportingClearancePdf, setExportingClearancePdf] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -153,82 +162,53 @@ export default function AdvisorDashboardPage() {
       </div>
 
       <div style={{ marginTop: 16 }}>
-        <Card title="Exportable Reports" description="Classroom clearance and defaulters reports for exam hall ticket processing.">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }} className="nd-two-col">
+        <Card title="Exportable Reports" description="Download the classroom clearance report as a formatted PDF.">
+          <div style={{ marginTop: 12 }}>
             <button
+              id="btn-export-clearance-pdf"
               onClick={async () => {
-                setExportingDefaulters(true);
+                setExportingClearancePdf(true);
                 try {
-                  await downloadAdvisorDefaultersReport();
+                  const sub = `${classroom.name} · Batch ${classroom.batch} · Sem ${classroom.semester}`;
+                  await downloadAdvisorClearancePdf(sub);
                 } catch {
-                  alert("Failed to export defaulters report");
+                  alert("Failed to generate clearance PDF");
                 } finally {
-                  setExportingDefaulters(false);
+                  setExportingClearancePdf(false);
                 }
               }}
-              disabled={exportingDefaulters}
+              disabled={exportingClearancePdf}
               className="nd-btn nd-btn-outline"
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "14px 16px",
-                background: "#fff",
+                width: "100%",
+                background: "#f0f9ff",
                 textAlign: "left",
+                borderColor: "#bae6fd",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <FileSpreadsheet style={{ width: 20, height: 20, color: "var(--nd-error)" }} />
+                <FileText style={{ width: 20, height: 20, color: "#1d4ed8" }} />
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--nd-navy)" }}>
-                    {exportingDefaulters ? "Exporting…" : "Classroom Defaulters List (CSV)"}
+                    {exportingClearancePdf ? "Generating PDF…" : "Clearance Report (PDF)"}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--nd-muted)" }}>
-                    Students with pending fees or incomplete approvals
+                    Branded, printable PDF with per-student status indicators
                   </div>
                 </div>
               </div>
-              <Download style={{ width: 16, height: 16, color: "var(--nd-muted)" }} />
-            </button>
-
-            <button
-              onClick={async () => {
-                setExportingClearance(true);
-                try {
-                  await downloadAdvisorClearanceReport();
-                } catch {
-                  alert("Failed to export clearance summary");
-                } finally {
-                  setExportingClearance(false);
-                }
-              }}
-              disabled={exportingClearance}
-              className="nd-btn nd-btn-outline"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "14px 16px",
-                background: "#fff",
-                textAlign: "left",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <FileSpreadsheet style={{ width: 20, height: 20, color: "var(--nd-blue)" }} />
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--nd-navy)" }}>
-                    {exportingClearance ? "Exporting…" : "Classroom Clearance Summary (CSV)"}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--nd-muted)" }}>
-                    Stage-by-stage clearance metrics across all students
-                  </div>
-                </div>
-              </div>
-              <Download style={{ width: 16, height: 16, color: "var(--nd-muted)" }} />
+              {exportingClearancePdf
+                ? <Loader2 style={{ width: 16, height: 16, color: "#1d4ed8", animation: "spin 1s linear infinite" }} />
+                : <Download style={{ width: 16, height: 16, color: "#1d4ed8" }} />}
             </button>
           </div>
         </Card>
       </div>
+
 
       <div className="nd-section">
         <h2 className="nd-section-title">Manage</h2>

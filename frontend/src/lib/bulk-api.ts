@@ -1,4 +1,5 @@
 import { apiClient } from "./api";
+import { parseCsvText, generatePdfReport } from "./pdf-export";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
 
@@ -164,3 +165,74 @@ export async function downloadHodClearanceReport(): Promise<void> {
   const blob = await res.blob();
   downloadBlob(blob, `department-clearance-${new Date().toISOString().split("T")[0]}.csv`);
 }
+
+// ─── PDF Export Reports ──────────────────────────────────────────────────────
+
+export async function downloadAdvisorDefaultersPdf(subtitle = "Classroom Report"): Promise<void> {
+  const res = await fetch(`${BASE_URL}/advisor/reports/defaulters/export`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to fetch defaulters data");
+  const csvText = await res.text();
+  const { headers, rows } = parseCsvText(csvText);
+  generatePdfReport({
+    filename: "classroom-defaulters",
+    title: "Classroom Defaulters List",
+    subtitle,
+    headers,
+    rows,
+    type: "defaulters",
+  });
+}
+
+export async function downloadAdvisorClearancePdf(subtitle = "Classroom Report"): Promise<void> {
+  const res = await fetch(`${BASE_URL}/advisor/reports/clearance/export`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to fetch clearance data");
+  const csvText = await res.text();
+  const { headers, rows } = parseCsvText(csvText);
+  generatePdfReport({
+    filename: "classroom-clearance",
+    title: "Classroom Clearance Summary",
+    subtitle,
+    headers,
+    rows,
+    type: "clearance",
+  });
+}
+
+export async function downloadHodDefaultersPdf(subtitle = "Department Report"): Promise<void> {
+  const res = await fetch(`${BASE_URL}/hod/reports/defaulters/export`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to fetch defaulters data");
+  const csvText = await res.text();
+  const { headers, rows } = parseCsvText(csvText);
+  generatePdfReport({
+    filename: "department-defaulters",
+    title: "Department Defaulters List",
+    subtitle,
+    headers,
+    rows,
+    type: "defaulters",
+  });
+}
+
+export async function downloadHodClearancePdf(subtitle = "Department Report"): Promise<void> {
+  const res = await fetch(`${BASE_URL}/hod/reports/clearance/export`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to fetch clearance data");
+  const csvText = await res.text();
+  const { headers, rows } = parseCsvText(csvText);
+  generatePdfReport({
+    filename: "department-clearance",
+    title: "Department Clearance Summary",
+    subtitle,
+    headers,
+    rows,
+    type: "clearance",
+  });
+}
+

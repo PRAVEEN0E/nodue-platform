@@ -12,12 +12,19 @@ import {
   ArrowRight,
   RefreshCw,
   FileSpreadsheet,
+  FileText,
   Download,
+  Loader2,
 } from "lucide-react";
 import { PageHeader, StatCard, Card, Button, Badge } from "@/components/ui/controls";
 import { PageLoader, ErrorState, ActivityList } from "@/components/ui/feedback";
 import { humanizeActivity } from "@/lib/activity";
-import { downloadHodDefaultersReport, downloadHodClearanceReport } from "@/lib/bulk-api";
+import {
+  downloadHodDefaultersReport,
+  downloadHodClearanceReport,
+  downloadHodDefaultersPdf,
+  downloadHodClearancePdf,
+} from "@/lib/bulk-api";
 
 const OPERATIONS = [
   { href: "/hod/classrooms", label: "Manage Classrooms", desc: "Batches, semesters and sections", icon: GraduationCap },
@@ -32,6 +39,8 @@ export default function HodDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [exportingDefaulters, setExportingDefaulters] = useState(false);
   const [exportingClearance, setExportingClearance] = useState(false);
+  const [exportingDefaultersPdf, setExportingDefaultersPdf] = useState(false);
+  const [exportingClearancePdf, setExportingClearancePdf] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     setError(null);
@@ -165,83 +174,40 @@ export default function HodDashboardPage() {
           </div>
         </Card>
 
-        <Card title="Exportable Reports" description="One-click CSV downloads for exams & administrative review.">
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+        <Card title="Exportable Reports" description="Download the department clearance report as a formatted PDF.">
+          <div style={{ marginTop: 12 }}>
             <button
+              id="btn-hod-export-clearance-pdf"
               onClick={async () => {
-                setExportingDefaulters(true);
+                setExportingClearancePdf(true);
                 try {
-                  await downloadHodDefaultersReport();
-                } catch {
-                  alert("Failed to export defaulters report");
-                } finally {
-                  setExportingDefaulters(false);
+                  const sub = `${department.name} (${department.code}) · Department Report`;
+                  await downloadHodClearancePdf(sub);
                 }
+                catch { alert("Failed to generate clearance PDF"); }
+                finally { setExportingClearancePdf(false); }
               }}
-              disabled={exportingDefaulters}
+              disabled={exportingClearancePdf}
               className="nd-btn nd-btn-outline"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 14px",
-                width: "100%",
-                background: "#fff",
-                textAlign: "left",
-              }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", width: "100%", background: "#f0f9ff", textAlign: "left", borderColor: "#bae6fd" }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <FileSpreadsheet style={{ width: 18, height: 18, color: "var(--nd-error)" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <FileText style={{ width: 20, height: 20, color: "#1d4ed8" }} />
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--nd-navy)" }}>
-                    {exportingDefaulters ? "Generating CSV…" : "Defaulters List (CSV)"}
+                    {exportingClearancePdf ? "Generating PDF…" : "Clearance Report (PDF)"}
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--nd-muted)" }}>
-                    Students with pending fees or clearances ahead of hall tickets
-                  </div>
+                  <div style={{ fontSize: 12, color: "var(--nd-muted)" }}>Branded, printable PDF with per-student status indicators</div>
                 </div>
               </div>
-              <Download style={{ width: 16, height: 16, color: "var(--nd-muted)" }} />
-            </button>
-
-            <button
-              onClick={async () => {
-                setExportingClearance(true);
-                try {
-                  await downloadHodClearanceReport();
-                } catch {
-                  alert("Failed to export clearance summary report");
-                } finally {
-                  setExportingClearance(false);
-                }
-              }}
-              disabled={exportingClearance}
-              className="nd-btn nd-btn-outline"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 14px",
-                width: "100%",
-                background: "#fff",
-                textAlign: "left",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <FileSpreadsheet style={{ width: 18, height: 18, color: "var(--nd-blue)" }} />
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--nd-navy)" }}>
-                    {exportingClearance ? "Generating CSV…" : "Department Clearance Summary (CSV)"}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--nd-muted)" }}>
-                    Overall clearance progress metrics across all department classrooms
-                  </div>
-                </div>
-              </div>
-              <Download style={{ width: 16, height: 16, color: "var(--nd-muted)" }} />
+              {exportingClearancePdf
+                ? <Loader2 style={{ width: 16, height: 16, color: "#1d4ed8", animation: "spin 1s linear infinite" }} />
+                : <Download style={{ width: 16, height: 16, color: "#1d4ed8" }} />}
             </button>
           </div>
         </Card>
+
+
 
         <Card
           title="Recent department activity"

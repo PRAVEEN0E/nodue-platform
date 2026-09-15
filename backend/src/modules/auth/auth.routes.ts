@@ -1,7 +1,16 @@
 import { FastifyPluginAsync } from "fastify";
 import { authController } from "./auth.controller";
-import { LoginInput, loginSchema } from "./auth.schema";
-import { validateBody } from "../../utils/validate";
+import {
+  LoginInput,
+  loginSchema,
+  ChangePasswordInput,
+  changePasswordSchema,
+  RevokeSessionParams,
+  revokeSessionParamsSchema,
+  RevokeAllSessionsBody,
+  revokeAllSessionsBodySchema,
+} from "./auth.schema";
+import { validateBody, validateParams } from "../../utils/validate";
 import { authenticate } from "../../middleware/authenticate";
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
@@ -33,5 +42,41 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [authenticate],
     },
     authController.me
+  );
+
+  fastify.post<{ Body: ChangePasswordInput }>(
+    "/change-password",
+    {
+      preHandler: [authenticate],
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+      preValidation: [validateBody(changePasswordSchema)],
+    },
+    authController.changePassword
+  );
+
+  fastify.get(
+    "/sessions",
+    {
+      preHandler: [authenticate],
+    },
+    authController.getActiveSessions
+  );
+
+  fastify.delete<{ Params: RevokeSessionParams }>(
+    "/sessions/:sessionId",
+    {
+      preHandler: [authenticate],
+      preValidation: [validateParams(revokeSessionParamsSchema)],
+    },
+    authController.revokeSession
+  );
+
+  fastify.post<{ Body: RevokeAllSessionsBody }>(
+    "/sessions/revoke-all",
+    {
+      preHandler: [authenticate],
+      preValidation: [validateBody(revokeAllSessionsBodySchema)],
+    },
+    authController.revokeAllSessions
   );
 };

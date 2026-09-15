@@ -753,4 +753,36 @@ export const hodRepository = {
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   },
+
+  async getDepartmentStudentsForReport(departmentId: string) {
+    return prisma.student.findMany({
+      where: { departmentId },
+      include: {
+        user: {
+          select: { firstName: true, lastName: true, email: true },
+        },
+        classroom: {
+          select: {
+            name: true,
+            batch: true,
+            semester: true,
+            section: true,
+            subjects: {
+              select: { id: true, code: true, name: true },
+            },
+          },
+        },
+        feeVerification: {
+          select: { advisorApproved: true, hodApproved: true },
+        },
+        approvals: {
+          select: { approverRole: true, subjectId: true, status: true, remarks: true },
+        },
+      },
+      orderBy: [
+        { classroom: { name: "asc" } },
+        { registerNumber: "asc" },
+      ],
+    });
+  },
 };

@@ -117,13 +117,19 @@ export default function AppShell({
 
           <div className="nd-sidebar-footer">
             <div className="nd-user-chip">
-              <div className="nd-avatar" aria-hidden="true">{initials}</div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div className="nd-user-name">
-                  {user ? `${user.firstName} ${user.lastName}` : "—"}
+              <Link
+                href="/profile"
+                style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1, textDecoration: "none", color: "inherit" }}
+                title="Manage Profile & Security"
+              >
+                <div className="nd-avatar" aria-hidden="true">{initials}</div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="nd-user-name">
+                    {user ? `${user.firstName} ${user.lastName}` : "—"}
+                  </div>
+                  <div className="nd-user-role">{user?.role ?? tagline}</div>
                 </div>
-                <div className="nd-user-role">{user?.role ?? tagline}</div>
-              </div>
+              </Link>
               <button
                 className="nd-icon-btn"
                 onClick={() => logout()}
@@ -158,7 +164,12 @@ export default function AppShell({
                 ))}
               </span>
             </div>
-            <div className="nd-topbar-actions">
+            <Link
+              href="/profile"
+              className="nd-topbar-actions"
+              style={{ textDecoration: "none", color: "inherit" }}
+              title="Manage Profile & Security"
+            >
               <div className="nd-avatar" aria-hidden="true">{initials}</div>
               <div className="hidden sm:block" style={{ lineHeight: 1.25 }}>
                 <div className="nd-user-name">
@@ -166,7 +177,7 @@ export default function AppShell({
                 </div>
                 <div className="nd-user-role">{user?.role ?? ""}</div>
               </div>
-            </div>
+            </Link>
           </header>
 
           <main className="nd-content">{children}</main>

@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import Link from "next/link";
 import { getUsers, getAdminDepartments, SafeUser, Department, Role, PaginationMeta } from "@/lib/admin-api";
 import { ApiError } from "@/lib/api";
-import { Search, RefreshCw } from "lucide-react";
+import { Search, RefreshCw, GraduationCap, Briefcase } from "lucide-react";
 import { PageHeader, Badge, Button } from "@/components/ui/controls";
 import { TableSkeleton, EmptyState, ErrorState, Pagination } from "@/components/ui/feedback";
 
@@ -76,10 +77,28 @@ export default function UsersPage() {
         title="Users"
         description={meta ? `${meta.total.toLocaleString()} total users` : "Loading…"}
         actions={
-          <Button variant="secondary" onClick={load}>
-            <RefreshCw style={{ width: 14, height: 14 }} />
-            Refresh
-          </Button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Link
+              href="/admin/students"
+              className="nd-btn nd-btn-secondary"
+              style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none" }}
+            >
+              <GraduationCap style={{ width: 14, height: 14 }} />
+              Bulk Import Students
+            </Link>
+            <Link
+              href="/admin/staff"
+              className="nd-btn nd-btn-secondary"
+              style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none" }}
+            >
+              <Briefcase style={{ width: 14, height: 14 }} />
+              Bulk Import Staff
+            </Link>
+            <Button variant="secondary" onClick={load}>
+              <RefreshCw style={{ width: 14, height: 14 }} />
+              Refresh
+            </Button>
+          </div>
         }
       />
 

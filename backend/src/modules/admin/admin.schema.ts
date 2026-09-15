@@ -127,3 +127,55 @@ export const hodIdParamSchema = z.object({
 export const staffIdParamSchema = z.object({
   id: z.string().uuid("Invalid staff ID"),
 });
+
+// ─── Bulk Import ─────────────────────────────────────────────────────────────
+
+export const bulkImportStudentRowSchema = z.object({
+  firstname: z.string().min(2, "First name must be at least 2 characters").max(50).trim(),
+  lastname: z.string().min(2, "Last name must be at least 2 characters").max(50).trim(),
+  email: z.string().email("Invalid email address").toLowerCase().trim(),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Password needs uppercase, lowercase, and number"),
+  registernumber: z.string().min(3, "Register number must be at least 3 characters").max(30).trim(),
+  rollnumber: z.string().max(30).trim().optional(),
+  admissionyear: z.coerce
+    .number()
+    .int("Admission year must be an integer")
+    .min(2000, "Admission year must be 2000 or later")
+    .max(2100),
+  classroomid: z.string().uuid("classroomId must be a valid UUID"),
+});
+
+export type BulkImportStudentRow = z.infer<typeof bulkImportStudentRowSchema>;
+
+export const bulkImportStaffRowSchema = z.object({
+  firstname: z.string().min(2, "First name must be at least 2 characters").max(50).trim(),
+  lastname: z.string().min(2, "Last name must be at least 2 characters").max(50).trim(),
+  email: z.string().email("Invalid email address").toLowerCase().trim(),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Password needs uppercase, lowercase, and number"),
+  employeecode: z.string().min(2, "Employee code must be at least 2 characters").max(30).trim(),
+  designation: z.string().min(2, "Designation must be at least 2 characters").max(80).trim(),
+  departmentid: z.string().uuid("departmentId must be a valid UUID"),
+});
+
+export type BulkImportStaffRow = z.infer<typeof bulkImportStaffRowSchema>;
+
+export interface BulkRowError {
+  row: number;
+  field?: string;
+  message: string;
+}
+
+export interface BulkImportResult {
+  dryRun: boolean;
+  total: number;
+  valid: number;
+  inserted: number;
+  errors: BulkRowError[];
+}
+

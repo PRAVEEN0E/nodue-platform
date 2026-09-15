@@ -50,6 +50,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname === "/profile" || pathname.startsWith("/profile/")) {
+    if (!isAuthenticated) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    return NextResponse.next();
+  }
+
   const isProtectedRoute = ROLE_PATHS.some(
     (r) => pathname === `/${r}` || pathname.startsWith(`/${r}/`)
   );
@@ -71,6 +78,8 @@ export const config = {
   matcher: [
     "/",
     "/login",
+    "/profile",
+    "/profile/:path*",
     "/admin/:path*",
     "/hod/:path*",
     "/advisor/:path*",
@@ -78,3 +87,4 @@ export const config = {
     "/student/:path*",
   ],
 };
+

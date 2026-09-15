@@ -10,10 +10,12 @@ import {
   AdvisorStudentDetail,
 } from "@/lib/advisor-api";
 import { ApiError } from "@/lib/api";
-import { Plus, Search, RefreshCw, Eye } from "lucide-react";
+import { Plus, Search, RefreshCw, Eye, UploadCloud } from "lucide-react";
 import { PageHeader, Badge, Button, Input, Select } from "@/components/ui/controls";
 import { Modal } from "@/components/ui/overlays";
 import { TableSkeleton, EmptyState, ErrorState, Pagination, ButtonSpinner } from "@/components/ui/feedback";
+import { BulkImportModal } from "@/components/ui/BulkImportModal";
+import { advisorBulkImportStudents, advisorDownloadStudentTemplate } from "@/lib/bulk-api";
 
 const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
@@ -28,6 +30,7 @@ export default function AdvisorStudentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -166,10 +169,19 @@ export default function AdvisorStudentsPage() {
         title="Students"
         description="Students enrolled in your assigned classroom."
         actions={
-          <Button onClick={() => { setFieldErrors({}); setShowCreate(true); }}>
-            <Plus style={{ width: 14, height: 14 }} />
-            Add Student
-          </Button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowBulkImport(true)}
+            >
+              <UploadCloud style={{ width: 14, height: 14 }} />
+              Bulk Import CSV
+            </Button>
+            <Button onClick={() => { setFieldErrors({}); setShowCreate(true); }}>
+              <Plus style={{ width: 14, height: 14 }} />
+              Add Student
+            </Button>
+          </div>
         }
       />
 
@@ -350,6 +362,16 @@ export default function AdvisorStudentsPage() {
           </form>
         </Modal>
       )}
+
+      <BulkImportModal
+        isOpen={showBulkImport}
+        onClose={() => setShowBulkImport(false)}
+        title="Bulk Import Students"
+        entityName="Students"
+        onDownloadTemplate={advisorDownloadStudentTemplate}
+        onUpload={advisorBulkImportStudents}
+        onSuccess={() => load()}
+      />
     </div>
   );
 }

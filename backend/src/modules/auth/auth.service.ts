@@ -1,10 +1,14 @@
 import crypto from "crypto";
 import { prisma } from "../../plugins/database";
-import { verifyPassword } from "../../utils/password";
-import { UnauthorizedError } from "../../utils/errors";
+import { verifyPassword, hashPassword } from "../../utils/password";
+import { UnauthorizedError, ValidationError, NotFoundError } from "../../utils/errors";
 import { auditService } from "../../utils/auditService";
 import { cacheService } from "../../plugins/redis";
-import { LoginInput } from "./auth.schema";
+import { env } from "../../config/env";
+import {
+  LoginInput,
+  ChangePasswordInput,
+} from "./auth.schema";
 import { Role } from "@prisma/client";
 
 export interface TokenPair {
@@ -73,6 +77,8 @@ export class AuthService {
         userId: user.id,
         tokenHash,
         expiresAt,
+        userAgent,
+        ipAddress,
       },
     });
 
@@ -176,6 +182,8 @@ export class AuthService {
         userId: tokenRecord.user.id,
         tokenHash: newTokenHash,
         expiresAt,
+        userAgent,
+        ipAddress,
       },
     });
 
@@ -270,6 +278,199 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  /**
+   * Changes authenticated user's password and optionally revokes other sessions
+   */
+  async changePassword(
+    userId: string,
+    input: ChangePasswordInput,
+    currentRawRefreshToken?: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<{ message: string }> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedError("User not found or inactive.");
+    }
+
+    const isValid = await verifyPassword(user.passwordHash, input.currentPassword);
+    if (!isValid) {
+      throw new ValidationError("Current password is incorrect.");
+    }
+
+    const newPasswordHash = await hashPassword(input.newPassword);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash },
+    });
+
+    // Revoke sessions
+    const currentTokenHash = currentRawRefreshToken ? this.hashToken(currentRawRefreshToken) : null;
+    if (input.keepCurrentSession && currentTokenHash) {
+      // Revoke all OTHER sessions
+      await prisma.refreshToken.updateMany({
+        where: {
+          userId,
+          revoked: false,
+          NOT: { tokenHash: currentTokenHash },
+        },
+        data: { revoked: true },
+      });
+    } else {
+      // Revoke ALL sessions
+      await prisma.refreshToken.updateMany({
+        where: { userId, revoked: false },
+        data: { revoked: true },
+      });
+    }
+
+    await auditService.log({
+      actorUserId: userId,
+      action: "AUTH_PASSWORD_CHANGE",
+      entityType: "User",
+      entityId: userId,
+      metadata: { keepCurrentSession: input.keepCurrentSession },
+      ipAddress,
+      userAgent,
+    });
+
+    return { message: "Password updated successfully." };
+  }
+
+
+  /**
+   * Retrieves all active, unexpired sessions for the authenticated user.
+   */
+  async getActiveSessions(
+    userId: string,
+    currentRawRefreshToken?: string
+  ): Promise<
+    Array<{
+      id: string;
+      createdAt: Date;
+      expiresAt: Date;
+      ipAddress: string | null;
+      userAgent: string | null;
+      isCurrent: boolean;
+    }>
+  > {
+    const currentHash = currentRawRefreshToken ? this.hashToken(currentRawRefreshToken) : null;
+
+    const tokens = await prisma.refreshToken.findMany({
+      where: {
+        userId,
+        revoked: false,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        tokenHash: true,
+        createdAt: true,
+        expiresAt: true,
+        ipAddress: true,
+        userAgent: true,
+      },
+    });
+
+    return tokens.map((t) => ({
+      id: t.id,
+      createdAt: t.createdAt,
+      expiresAt: t.expiresAt,
+      ipAddress: t.ipAddress,
+      userAgent: t.userAgent,
+      isCurrent: currentHash !== null && t.tokenHash === currentHash,
+    }));
+  }
+
+  /**
+   * Revokes a single specific session.
+   */
+  async revokeSession(
+    userId: string,
+    sessionId: string,
+    currentRawRefreshToken?: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<{ isCurrent: boolean }> {
+    const tokenRecord = await prisma.refreshToken.findFirst({
+      where: { id: sessionId, userId },
+    });
+
+    if (!tokenRecord) {
+      throw new NotFoundError("Session not found.");
+    }
+
+    await prisma.refreshToken.update({
+      where: { id: sessionId },
+      data: { revoked: true },
+    });
+
+    const currentHash = currentRawRefreshToken ? this.hashToken(currentRawRefreshToken) : null;
+    const isCurrent = currentHash !== null && tokenRecord.tokenHash === currentHash;
+
+    await auditService.log({
+      actorUserId: userId,
+      action: "AUTH_SESSION_REVOKED",
+      entityType: "RefreshToken",
+      entityId: sessionId,
+      metadata: { isCurrent },
+      ipAddress,
+      userAgent,
+    });
+
+    return { isCurrent };
+  }
+
+  /**
+   * Revokes all active sessions for the user, with optional retention of the current session.
+   */
+  async revokeAllSessions(
+    userId: string,
+    keepCurrentSession: boolean,
+    currentRawRefreshToken?: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<{ revokedCount: number; isCurrentLoggedOut: boolean }> {
+    const currentHash = currentRawRefreshToken ? this.hashToken(currentRawRefreshToken) : null;
+
+    const whereClause: {
+      userId: string;
+      revoked: boolean;
+      NOT?: { tokenHash: string };
+    } = { userId, revoked: false };
+
+    if (keepCurrentSession && currentHash) {
+      whereClause.NOT = { tokenHash: currentHash };
+    }
+
+    const result = await prisma.refreshToken.updateMany({
+      where: whereClause,
+      data: { revoked: true },
+    });
+
+    const isCurrentLoggedOut = !keepCurrentSession || !currentHash;
+
+    await auditService.log({
+      actorUserId: userId,
+      action: "AUTH_ALL_SESSIONS_REVOKED",
+      entityType: "User",
+      entityId: userId,
+      metadata: { keepCurrentSession, revokedCount: result.count },
+      ipAddress,
+      userAgent,
+    });
+
+    return {
+      revokedCount: result.count,
+      isCurrentLoggedOut,
+    };
   }
 }
 

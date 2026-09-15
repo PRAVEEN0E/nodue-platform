@@ -135,4 +135,33 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     adminController.getAuditLogs
   );
+
+  // ─── Bulk Import Routes ───────────────────────────────────────────────────
+  // POST /api/v1/admin/students/bulk-import?dryRun=true|false
+  fastify.post(
+    "/students/bulk-import",
+    { preHandler: adminGuard },
+    adminController.bulkImportStudents
+  );
+
+  // GET /api/v1/admin/students/template
+  fastify.get(
+    "/students/template",
+    { preHandler: adminGuard },
+    adminController.downloadStudentTemplate
+  );
+
+  // POST /api/v1/admin/staff/bulk-import?dryRun=true|false
+  fastify.post(
+    "/staff/bulk-import",
+    { preHandler: adminGuard },
+    adminController.bulkImportStaff
+  );
+
+  // GET /api/v1/admin/staff/template
+  fastify.get(
+    "/staff/template",
+    { preHandler: adminGuard },
+    adminController.downloadStaffTemplate
+  );
 };

@@ -177,3 +177,37 @@ export type ApproveFeeVerificationInput = z.infer<typeof approveFeeVerificationS
 export type GetAdvisorApprovalsQuery = z.infer<typeof getAdvisorApprovalsQuerySchema>;
 export type DecideAdvisorApprovalInput = z.infer<typeof decideAdvisorApprovalSchema>;
 export type GetFinalVerificationQuery = z.infer<typeof getFinalVerificationQuerySchema>;
+
+// ─── Bulk Subject Import ──────────────────────────────────────────────────────
+
+export const bulkImportSubjectRowSchema = z.object({
+  code: z.string().min(2, "Subject code must be at least 2 characters").max(20).trim(),
+  name: z.string().min(2, "Subject name must be at least 2 characters").max(100).trim(),
+  credits: z.coerce.number().int().min(1).max(10).default(3),
+  semester: z.coerce
+    .number()
+    .int("Semester must be an integer")
+    .min(1, "Semester must be between 1 and 8")
+    .max(8, "Semester must be between 1 and 8"),
+});
+
+export type BulkImportSubjectRow = z.infer<typeof bulkImportSubjectRowSchema>;
+
+// ─── Bulk Student Import (Classroom scoped) ──────────────────────────────────
+
+export const bulkImportAdvisorStudentRowSchema = z.object({
+  firstname: z.string().min(1, "First name is required").trim(),
+  lastname: z.string().min(1, "Last name is required").trim(),
+  email: z.string().email("Invalid email address").toLowerCase().trim(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  registernumber: z.string().min(3, "Register number must be at least 3 characters").trim(),
+  rollnumber: z.string().trim().optional().default(""),
+  admissionyear: z.coerce
+    .number()
+    .int("Admission year must be an integer")
+    .min(2000, "Admission year must be >= 2000")
+    .max(2100, "Admission year must be <= 2100"),
+});
+
+export type BulkImportAdvisorStudentRow = z.infer<typeof bulkImportAdvisorStudentRowSchema>;
+

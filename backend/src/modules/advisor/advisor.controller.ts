@@ -18,6 +18,7 @@ import {
   GetSubjectsQuery,
   MapStaffToSubjectInput,
 } from "./advisor.schema";
+import { SUBJECT_CSV_TEMPLATE, ADVISOR_STUDENT_CSV_TEMPLATE } from "../../utils/csvParser";
 
 function requestMeta(request: FastifyRequest) {
   return {
@@ -223,5 +224,67 @@ export const advisorController = {
     const { userId, ip, userAgent } = requestMeta(request);
     const result = await advisorService.approveFeeVerification(userId, request.body, ip, userAgent);
     return reply.send({ success: true, data: result });
+  },
+
+  // ─── Bulk Import & Reports ────────────────────────────────────────────────
+
+  async bulkImportSubjects(request: FastifyRequest, reply: FastifyReply) {
+    const { userId, ip, userAgent } = requestMeta(request);
+    const dryRun = (request.query as Record<string, string>)["dryRun"] !== "false";
+
+    const data = await (request as FastifyRequest & { file?: () => Promise<{ toBuffer: () => Promise<Buffer> }> }).file?.();
+    if (!data) {
+      return reply.status(400).send({ success: false, error: { code: "NO_FILE", message: "No CSV file uploaded." } });
+    }
+    const buffer = await data.toBuffer();
+    const csvText = buffer.toString("utf-8");
+
+    const result = await advisorService.bulkImportSubjects(csvText, userId, dryRun, ip, userAgent);
+    return reply.send({ success: true, data: result });
+  },
+
+  async downloadSubjectTemplate(_request: FastifyRequest, reply: FastifyReply) {
+    reply.header("Content-Type", "text/csv; charset=utf-8");
+    reply.header("Content-Disposition", 'attachment; filename="subjects-import-template.csv"');
+    return reply.send(SUBJECT_CSV_TEMPLATE);
+  },
+
+  async exportDefaulters(request: FastifyRequest, reply: FastifyReply) {
+    const { userId } = requestMeta(request);
+    const csv = await advisorService.exportDefaultersCsv(userId);
+    reply.header("Content-Type", "text/csv; charset=utf-8");
+    reply.header("Content-Disposition", 'attachment; filename="advisor-defaulters.csv"');
+    return reply.send(csv);
+  },
+
+  async exportClearanceSummary(request: FastifyRequest, reply: FastifyReply) {
+    const { userId } = requestMeta(request);
+    const csv = await advisorService.exportClearanceSummaryCsv(userId);
+    reply.header("Content-Type", "text/csv; charset=utf-8");
+    reply.header("Content-Disposition", 'attachment; filename="advisor-clearance-summary.csv"');
+    return reply.send(csv);
+  },
+
+  // ─── Bulk Student Import (Classroom scope) ────────────────────────────────
+
+  async bulkImportStudents(request: FastifyRequest, reply: FastifyReply) {
+    const { userId, ip, userAgent } = requestMeta(request);
+    const dryRun = (request.query as Record<string, string>)["dryRun"] !== "false";
+
+    const data = await (request as FastifyRequest & { file?: () => Promise<{ toBuffer: () => Promise<Buffer> }> }).file?.();
+    if (!data) {
+      return reply.status(400).send({ success: false, error: { code: "NO_FILE", message: "No CSV file uploaded." } });
+    }
+    const buffer = await data.toBuffer();
+    const csvText = buffer.toString("utf-8");
+
+    const result = await advisorService.bulkImportStudents(csvText, userId, dryRun, ip, userAgent);
+    return reply.send({ success: true, data: result });
+  },
+
+  async downloadStudentTemplate(_request: FastifyRequest, reply: FastifyReply) {
+    reply.header("Content-Type", "text/csv; charset=utf-8");
+    reply.header("Content-Disposition", 'attachment; filename="students-import-template.csv"');
+    return reply.send(ADVISOR_STUDENT_CSV_TEMPLATE);
   },
 };

@@ -76,7 +76,8 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     }
   }
 
-  if (hasBody && !headers["Content-Type"]) {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (hasBody && !headers["Content-Type"] && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
 

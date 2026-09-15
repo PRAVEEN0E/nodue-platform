@@ -42,3 +42,13 @@ export interface AuthResponse {
     details?: unknown;
   };
 }
+
+export interface UserSession {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  isCurrent: boolean;
+}
+

@@ -2,6 +2,7 @@ import Fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import multipart from "@fastify/multipart";
 import { randomUUID } from "node:crypto";
 import { env } from "./config/env";
 import authPlugin from "./plugins/auth";
@@ -101,6 +102,14 @@ export function buildApp(): FastifyInstance {
     redis: rateLimitRedis,
     nameSpace: "nodue-ratelimit-",
     skipOnError: true,
+  });
+
+  // Multipart form data support (up to 5MB for bulk CSV/Excel uploads)
+  app.register(multipart, {
+    limits: {
+      fileSize: 5 * 1024 * 1024,
+      files: 1,
+    },
   });
 
   // Request observability: correlation header + latency/status aggregates.

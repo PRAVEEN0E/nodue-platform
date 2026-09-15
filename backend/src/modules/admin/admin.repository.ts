@@ -437,4 +437,52 @@ export const adminRepository = {
     // Cascade); Approval.approverUser references are SetNull, preserving audit.
     await prisma.user.delete({ where: { id: userId }, select: { id: true } });
   },
+
+  async bulkCreateStudent(data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    passwordHash: string;
+    registerNumber: string;
+    rollNumber: string | null;
+    admissionYear: number;
+    classroomId: string;
+  }): Promise<{ studentId: string; userId: string }> {
+    // Derive departmentId from classroom to avoid trusting caller-supplied value
+    const classroom = await prisma.classroom.findUnique({
+      where: { id: data.classroomId },
+      select: { departmentId: true },
+    });
+    if (!classroom) throw new Error(`Classroom ${data.classroomId} not found`);
+
+    return prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          passwordHash: data.passwordHash,
+          role: Role.STUDENT,
+          departmentId: classroom.departmentId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+
+      const student = await tx.student.create({
+        data: {
+          userId: user.id,
+          registerNumber: data.registerNumber,
+          rollNumber: data.rollNumber,
+          classroomId: data.classroomId,
+          departmentId: classroom.departmentId,
+          admissionYear: data.admissionYear,
+        },
+        select: { id: true },
+      });
+
+      return { studentId: student.id, userId: user.id };
+    });
+  },
 };
+

@@ -11,10 +11,13 @@ import {
   CheckCircle2,
   ArrowRight,
   RefreshCw,
+  FileSpreadsheet,
+  Download,
 } from "lucide-react";
 import { PageHeader, StatCard, Card, Button, Badge } from "@/components/ui/controls";
 import { PageLoader, ErrorState, ActivityList } from "@/components/ui/feedback";
 import { humanizeActivity } from "@/lib/activity";
+import { downloadHodDefaultersReport, downloadHodClearanceReport } from "@/lib/bulk-api";
 
 const OPERATIONS = [
   { href: "/hod/classrooms", label: "Manage Classrooms", desc: "Batches, semesters and sections", icon: GraduationCap },
@@ -27,6 +30,8 @@ export default function HodDashboardPage() {
   const [pendingReviews, setPendingReviews] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exportingDefaulters, setExportingDefaulters] = useState(false);
+  const [exportingClearance, setExportingClearance] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     setError(null);
@@ -157,6 +162,84 @@ export default function HodDashboardPage() {
                 </Link>
               );
             })}
+          </div>
+        </Card>
+
+        <Card title="Exportable Reports" description="One-click CSV downloads for exams & administrative review.">
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+            <button
+              onClick={async () => {
+                setExportingDefaulters(true);
+                try {
+                  await downloadHodDefaultersReport();
+                } catch {
+                  alert("Failed to export defaulters report");
+                } finally {
+                  setExportingDefaulters(false);
+                }
+              }}
+              disabled={exportingDefaulters}
+              className="nd-btn nd-btn-outline"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 14px",
+                width: "100%",
+                background: "#fff",
+                textAlign: "left",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <FileSpreadsheet style={{ width: 18, height: 18, color: "var(--nd-error)" }} />
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--nd-navy)" }}>
+                    {exportingDefaulters ? "Generating CSV…" : "Defaulters List (CSV)"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--nd-muted)" }}>
+                    Students with pending fees or clearances ahead of hall tickets
+                  </div>
+                </div>
+              </div>
+              <Download style={{ width: 16, height: 16, color: "var(--nd-muted)" }} />
+            </button>
+
+            <button
+              onClick={async () => {
+                setExportingClearance(true);
+                try {
+                  await downloadHodClearanceReport();
+                } catch {
+                  alert("Failed to export clearance summary report");
+                } finally {
+                  setExportingClearance(false);
+                }
+              }}
+              disabled={exportingClearance}
+              className="nd-btn nd-btn-outline"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 14px",
+                width: "100%",
+                background: "#fff",
+                textAlign: "left",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <FileSpreadsheet style={{ width: 18, height: 18, color: "var(--nd-blue)" }} />
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--nd-navy)" }}>
+                    {exportingClearance ? "Generating CSV…" : "Department Clearance Summary (CSV)"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--nd-muted)" }}>
+                    Overall clearance progress metrics across all department classrooms
+                  </div>
+                </div>
+              </div>
+              <Download style={{ width: 16, height: 16, color: "var(--nd-muted)" }} />
+            </button>
           </div>
         </Card>
 

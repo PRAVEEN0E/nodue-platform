@@ -1,6 +1,11 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { authService } from "./auth.service";
-import { LoginInput } from "./auth.schema";
+import {
+  LoginInput,
+  ChangePasswordInput,
+  RevokeSessionParams,
+  RevokeAllSessionsBody,
+} from "./auth.schema";
 import { env } from "../../config/env";
 
 const isProduction = env.NODE_ENV === "production";
@@ -145,6 +150,134 @@ export const authController = {
       success: true,
       data: {
         user,
+      },
+    });
+  },
+
+  async changePassword(request: FastifyRequest<{ Body: ChangePasswordInput }>, reply: FastifyReply) {
+    const userId = request.user.userId;
+    const rawRefreshToken = request.cookies.refresh_token;
+    const ipAddress = request.ip;
+    const userAgent = request.headers["user-agent"];
+
+    const result = await authService.changePassword(
+      userId,
+      request.body,
+      rawRefreshToken,
+      ipAddress,
+      userAgent
+    );
+
+    if (!request.body.keepCurrentSession) {
+      reply.clearCookie("access_token", {
+        path: "/",
+        httpOnly: true,
+        secure: cookieSecure,
+        sameSite: cookieSameSite,
+      });
+      reply.clearCookie("refresh_token", {
+        path: "/api/v1/auth",
+        httpOnly: true,
+        secure: cookieSecure,
+        sameSite: cookieSameSite,
+      });
+    }
+
+    return reply.status(200).send({
+      success: true,
+      data: result,
+    });
+  },
+
+  async getActiveSessions(request: FastifyRequest, reply: FastifyReply) {
+    const userId = request.user.userId;
+    const rawRefreshToken = request.cookies.refresh_token;
+
+    const sessions = await authService.getActiveSessions(userId, rawRefreshToken);
+
+    return reply.status(200).send({
+      success: true,
+      data: {
+        sessions,
+      },
+    });
+  },
+
+  async revokeSession(request: FastifyRequest<{ Params: RevokeSessionParams }>, reply: FastifyReply) {
+    const userId = request.user.userId;
+    const sessionId = request.params.sessionId;
+    const rawRefreshToken = request.cookies.refresh_token;
+    const ipAddress = request.ip;
+    const userAgent = request.headers["user-agent"];
+
+    const { isCurrent } = await authService.revokeSession(
+      userId,
+      sessionId,
+      rawRefreshToken,
+      ipAddress,
+      userAgent
+    );
+
+    if (isCurrent) {
+      reply.clearCookie("access_token", {
+        path: "/",
+        httpOnly: true,
+        secure: cookieSecure,
+        sameSite: cookieSameSite,
+      });
+      reply.clearCookie("refresh_token", {
+        path: "/api/v1/auth",
+        httpOnly: true,
+        secure: cookieSecure,
+        sameSite: cookieSameSite,
+      });
+    }
+
+    return reply.status(200).send({
+      success: true,
+      data: {
+        message: "Session revoked successfully.",
+        isCurrent,
+      },
+    });
+  },
+
+  async revokeAllSessions(request: FastifyRequest<{ Body: RevokeAllSessionsBody }>, reply: FastifyReply) {
+    const userId = request.user.userId;
+    const keepCurrentSession = request.body?.keepCurrentSession ?? true;
+    const rawRefreshToken = request.cookies.refresh_token;
+    const ipAddress = request.ip;
+    const userAgent = request.headers["user-agent"];
+
+    const result = await authService.revokeAllSessions(
+      userId,
+      keepCurrentSession,
+      rawRefreshToken,
+      ipAddress,
+      userAgent
+    );
+
+    if (result.isCurrentLoggedOut) {
+      reply.clearCookie("access_token", {
+        path: "/",
+        httpOnly: true,
+        secure: cookieSecure,
+        sameSite: cookieSameSite,
+      });
+      reply.clearCookie("refresh_token", {
+        path: "/api/v1/auth",
+        httpOnly: true,
+        secure: cookieSecure,
+        sameSite: cookieSameSite,
+      });
+    }
+
+    return reply.status(200).send({
+      success: true,
+      data: {
+        message: "Sessions revoked successfully.",
+        revokedCount: result.revokedCount,
+        isCurrentLoggedOut: result.isCurrentLoggedOut,
       },
     });
   },

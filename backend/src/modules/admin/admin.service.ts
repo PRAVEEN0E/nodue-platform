@@ -12,7 +12,12 @@ import {
   CreateStaffInput,
   UpdateStaffInput,
   GetStaffQuery,
+  bulkImportStudentRowSchema,
+  bulkImportStaffRowSchema,
+  BulkImportResult,
+  BulkRowError,
 } from "./admin.schema";
+import { parseCsv, csvToObjects } from "../../utils/csvParser";
 
 const CACHE_KEYS = {
   dashboard: "cache:admin:dashboard",
@@ -347,4 +352,139 @@ export const adminService = {
   async getAuditLogs(query: GetAuditLogsQuery) {
     return adminRepository.getPaginatedAuditLogs(query);
   },
+
+  // ─── Bulk Import ────────────────────────────────────────────────────────────
+
+  async bulkImportStudents(
+    csvText: string,
+    actorUserId: string,
+    dryRun: boolean,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<BulkImportResult> {
+    const rows = csvToObjects(parseCsv(csvText));
+    const errors: BulkRowError[] = [];
+    const validRows: Array<ReturnType<typeof bulkImportStudentRowSchema.parse>> = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const rowNum = i + 2; // 1-indexed + header row
+      const parsed = bulkImportStudentRowSchema.safeParse(rows[i]);
+      if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+          errors.push({ row: rowNum, field: issue.path.join("."), message: issue.message });
+        }
+      } else {
+        validRows.push(parsed.data);
+      }
+    }
+
+    const result: BulkImportResult = {
+      dryRun,
+      total: rows.length,
+      valid: validRows.length,
+      inserted: 0,
+      errors,
+    };
+
+    if (dryRun || errors.length > 0) return result;
+
+    // Atomic batch insert
+    let inserted = 0;
+    for (const row of validRows) {
+      try {
+        const passwordHash = await hashPassword(row.password);
+        await adminRepository.bulkCreateStudent({
+          firstName: row.firstname,
+          lastName: row.lastname,
+          email: row.email,
+          passwordHash,
+          registerNumber: row.registernumber,
+          rollNumber: row.rollnumber || null,
+          admissionYear: row.admissionyear,
+          classroomId: row.classroomid,
+        });
+        inserted++;
+      } catch {
+        // Skip duplicates silently in batch mode
+      }
+    }
+
+    await auditService.log({
+      actorUserId,
+      action: "BULK_STUDENT_IMPORT",
+      entityType: "Student",
+      metadata: { total: rows.length, inserted, dryRun },
+      ipAddress,
+      userAgent,
+    });
+
+    return { ...result, inserted };
+  },
+
+  async bulkImportStaff(
+    csvText: string,
+    actorUserId: string,
+    dryRun: boolean,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<BulkImportResult> {
+    const rows = csvToObjects(parseCsv(csvText));
+    const errors: BulkRowError[] = [];
+    const validRows: Array<ReturnType<typeof bulkImportStaffRowSchema.parse>> = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const rowNum = i + 2;
+      const parsed = bulkImportStaffRowSchema.safeParse(rows[i]);
+      if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+          errors.push({ row: rowNum, field: issue.path.join("."), message: issue.message });
+        }
+      } else {
+        validRows.push(parsed.data);
+      }
+    }
+
+    const result: BulkImportResult = {
+      dryRun,
+      total: rows.length,
+      valid: validRows.length,
+      inserted: 0,
+      errors,
+    };
+
+    if (dryRun || errors.length > 0) return result;
+
+    let inserted = 0;
+    for (const row of validRows) {
+      try {
+        const passwordHash = await hashPassword(row.password);
+        await adminRepository.createStaffAccount({
+          firstName: row.firstname,
+          lastName: row.lastname,
+          email: row.email,
+          password: row.password,
+          passwordHash,
+          employeeCode: row.employeecode,
+          designation: row.designation,
+          departmentId: row.departmentid,
+          isActive: true,
+        });
+        inserted++;
+      } catch {
+        // Skip duplicates silently in batch mode
+      }
+    }
+
+    await auditService.log({
+      actorUserId,
+      action: "BULK_STAFF_IMPORT",
+      entityType: "Staff",
+      metadata: { total: rows.length, inserted, dryRun },
+      ipAddress,
+      userAgent,
+    });
+
+    return { ...result, inserted };
+  },
 };
+

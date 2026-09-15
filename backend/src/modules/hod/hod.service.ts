@@ -18,8 +18,9 @@ import {
   GetHodFeesQuery,
   ApproveFeeVerificationInput,
 } from "./hod.schema";
-import { approvalEngine } from "../approval-engine/approval-engine.service";
+import { approvalEngine, deriveFinalVerification, StageDecision } from "../approval-engine/approval-engine.service";
 import { Role } from "@prisma/client";
+import { toCsvString } from "../../utils/csvParser";
 
 export const hodService = {
   // ─── Dashboard & Department ─────────────────────────────────────────────────
@@ -538,5 +539,128 @@ export const hodService = {
     });
     await cacheService.del(`hod:dashboard:${departmentId}`);
     return result;
+  },
+
+  // ─── Export Reports ───────────────────────────────────────────────────────
+
+  async exportDefaultersCsv(departmentId: string): Promise<string> {
+    const students = await hodRepository.getDepartmentStudentsForReport(departmentId);
+
+    const headers = [
+      "Register Number",
+      "Student Name",
+      "Email",
+      "Classroom",
+      "Fee Verified",
+      "Staff Approvals (Approved/Total)",
+      "Advisor Approval",
+      "HOD Approval",
+      "Defaulter Reasons",
+    ];
+
+    const rows: (string | number)[][] = [];
+
+    for (const s of students) {
+      const totalSubjects = s.classroom.subjects.length;
+      const staffApprovedCount = s.approvals.filter((a) => a.approverRole === Role.STAFF && a.status === "APPROVED").length;
+      const staffRejectedCount = s.approvals.filter((a) => a.approverRole === Role.STAFF && a.status === "REJECTED").length;
+
+      const advisorAppr = s.approvals.find((a) => a.approverRole === Role.ADVISOR && !a.subjectId);
+      const hodAppr = s.approvals.find((a) => a.approverRole === Role.HOD && !a.subjectId);
+
+      const feeVerified = Boolean(s.feeVerification?.advisorApproved || s.feeVerification?.hodApproved);
+      const advisorDecision = (advisorAppr?.status as StageDecision) ?? "PENDING";
+      const hodDecision = (hodAppr?.status as StageDecision) ?? "PENDING";
+
+      const fv = deriveFinalVerification({
+        subjectsTotal: totalSubjects,
+        subjectsApproved: staffApprovedCount,
+        subjectsRejected: staffRejectedCount,
+        advisorDecision,
+        hodDecision,
+        feeByAdvisor: s.feeVerification?.advisorApproved ?? false,
+        feeByHod: s.feeVerification?.hodApproved ?? false,
+        isVerified: true,
+      });
+
+      if (!fv.eligible) {
+        const reasons: string[] = [];
+        if (!feeVerified) reasons.push("Pending Fee Verification");
+        if (staffRejectedCount > 0) reasons.push(`${staffRejectedCount} subject(s) rejected by staff`);
+        if (staffApprovedCount < totalSubjects) reasons.push(`Staff pending (${staffApprovedCount}/${totalSubjects} approved)`);
+        if (advisorDecision !== "APPROVED") reasons.push(`Advisor ${advisorDecision.toLowerCase()}`);
+        if (hodDecision !== "APPROVED") reasons.push(`HOD ${hodDecision.toLowerCase()}`);
+
+        rows.push([
+          s.registerNumber,
+          `${s.user.firstName} ${s.user.lastName}`,
+          s.user.email,
+          s.classroom.name,
+          feeVerified ? "YES" : "NO",
+          `${staffApprovedCount}/${totalSubjects}`,
+          advisorDecision,
+          hodDecision,
+          reasons.join("; "),
+        ]);
+      }
+    }
+
+    return toCsvString(headers, rows);
+  },
+
+  async exportClearanceSummaryCsv(departmentId: string): Promise<string> {
+    const students = await hodRepository.getDepartmentStudentsForReport(departmentId);
+
+    const headers = [
+      "Register Number",
+      "Student Name",
+      "Email",
+      "Classroom",
+      "Fee Verified",
+      "Staff Approvals",
+      "Advisor Status",
+      "HOD Status",
+      "Overall Clearance",
+    ];
+
+    const rows: (string | number)[][] = [];
+
+    for (const s of students) {
+      const totalSubjects = s.classroom.subjects.length;
+      const staffApprovedCount = s.approvals.filter((a) => a.approverRole === Role.STAFF && a.status === "APPROVED").length;
+      const staffRejectedCount = s.approvals.filter((a) => a.approverRole === Role.STAFF && a.status === "REJECTED").length;
+
+      const advisorAppr = s.approvals.find((a) => a.approverRole === Role.ADVISOR && !a.subjectId);
+      const hodAppr = s.approvals.find((a) => a.approverRole === Role.HOD && !a.subjectId);
+
+      const feeVerified = Boolean(s.feeVerification?.advisorApproved || s.feeVerification?.hodApproved);
+      const advisorDecision = (advisorAppr?.status as StageDecision) ?? "PENDING";
+      const hodDecision = (hodAppr?.status as StageDecision) ?? "PENDING";
+
+      const fv = deriveFinalVerification({
+        subjectsTotal: totalSubjects,
+        subjectsApproved: staffApprovedCount,
+        subjectsRejected: staffRejectedCount,
+        advisorDecision,
+        hodDecision,
+        feeByAdvisor: s.feeVerification?.advisorApproved ?? false,
+        feeByHod: s.feeVerification?.hodApproved ?? false,
+        isVerified: true,
+      });
+
+      rows.push([
+        s.registerNumber,
+        `${s.user.firstName} ${s.user.lastName}`,
+        s.user.email,
+        s.classroom.name,
+        feeVerified ? "YES" : "NO",
+        `${staffApprovedCount}/${totalSubjects}`,
+        advisorDecision,
+        hodDecision,
+        fv.eligible ? "CLEARED" : "INCOMPLETE",
+      ]);
+    }
+
+    return toCsvString(headers, rows);
   },
 };

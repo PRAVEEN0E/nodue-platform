@@ -229,4 +229,17 @@ export const hodRoutes: FastifyPluginAsync = async (fastify) => {
     },
     hodController.approveFeeVerification
   );
+
+  // ─── Exportable Reports ───────────────────────────────────────────────────
+  fastify.get(
+    "/reports/defaulters/export",
+    { preHandler: hodGuard },
+    hodController.exportDefaulters
+  );
+
+  fastify.get(
+    "/reports/clearance/export",
+    { preHandler: hodGuard },
+    hodController.exportClearanceSummary
+  );
 };

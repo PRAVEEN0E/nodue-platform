@@ -226,4 +226,20 @@ export const hodController = {
     );
     return reply.status(200).send({ success: true, data: result });
   },
+
+  // ─── Export Reports ───────────────────────────────────────────────────────
+
+  async exportDefaulters(request: FastifyRequest, reply: FastifyReply) {
+    const csv = await hodService.exportDefaultersCsv(request.departmentId!);
+    reply.header("Content-Type", "text/csv; charset=utf-8");
+    reply.header("Content-Disposition", 'attachment; filename="department-defaulters.csv"');
+    return reply.send(csv);
+  },
+
+  async exportClearanceSummary(request: FastifyRequest, reply: FastifyReply) {
+    const csv = await hodService.exportClearanceSummaryCsv(request.departmentId!);
+    reply.header("Content-Type", "text/csv; charset=utf-8");
+    reply.header("Content-Disposition", 'attachment; filename="department-clearance-summary.csv"');
+    return reply.send(csv);
+  },
 };

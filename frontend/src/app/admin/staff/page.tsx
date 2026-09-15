@@ -12,7 +12,9 @@ import {
   CreateStaffPayload,
 } from "@/lib/admin-api";
 import { ApiError } from "@/lib/api";
-import { MoreVertical, Pencil, Power, Trash2 } from "lucide-react";
+import { MoreVertical, Pencil, Power, Trash2, UploadCloud } from "lucide-react";
+import { BulkImportModal } from "@/components/ui/BulkImportModal";
+import { bulkImportStaff, downloadStaffTemplate } from "@/lib/bulk-api";
 
 const emptyForm = () => ({
   firstName: "",
@@ -484,6 +486,7 @@ export default function AdminStaffPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [editing, setEditing] = useState<AdminStaff | null>(null);
   const [deleting, setDeleting] = useState<AdminStaff | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -566,13 +569,23 @@ export default function AdminStaffPage() {
             Create and manage staff accounts. Advisors assign existing staff to their classroom subjects.
           </p>
         </div>
-        <button
-          className="admin-btn-primary"
-          onClick={() => setShowCreate(true)}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Create Staff
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            className="admin-btn-secondary"
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+            onClick={() => setShowBulkImport(true)}
+          >
+            <UploadCloud style={{ width: 14, height: 14 }} />
+            Bulk Import CSV
+          </button>
+          <button
+            className="admin-btn-primary"
+            onClick={() => setShowCreate(true)}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Create Staff
+          </button>
+        </div>
       </header>
 
       {/* Summary stats */}
@@ -825,6 +838,16 @@ export default function AdminStaffPage() {
           </div>
         </div>
       )}
+
+      <BulkImportModal
+        isOpen={showBulkImport}
+        onClose={() => setShowBulkImport(false)}
+        title="Bulk Import Staff"
+        entityName="Staff"
+        onDownloadTemplate={downloadStaffTemplate}
+        onUpload={bulkImportStaff}
+        onSuccess={() => load(pendingPage)}
+      />
     </div>
   );
 }

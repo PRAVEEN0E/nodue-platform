@@ -20,7 +20,14 @@ import {
   GetAdvisorApprovalsQuery,
   DecideAdvisorApprovalInput,
   GetFinalVerificationQuery,
+  bulkImportSubjectRowSchema,
+  BulkImportSubjectRow,
+  bulkImportAdvisorStudentRowSchema,
 } from "./advisor.schema";
+import { parseCsv, csvToObjects, toCsvString } from "../../utils/csvParser";
+import { deriveFinalVerification, StageDecision } from "../approval-engine/approval-engine.service";
+import { BulkImportResult, BulkRowError } from "../admin/admin.schema";
+import { adminRepository } from "../admin/admin.repository";
 
 const dashboardCacheKey = (userId: string) => `cache:advisor:dashboard:${userId}`;
 
@@ -537,5 +544,281 @@ export const advisorService = {
       ipAddress,
       userAgent,
     });
+  },
+
+  // ─── Bulk Subject Import ──────────────────────────────────────────────────
+
+  async bulkImportSubjects(
+    csvText: string,
+    userId: string,
+    dryRun: boolean,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<BulkImportResult> {
+    const scope = await this.requireScope(userId);
+    const rows = csvToObjects(parseCsv(csvText));
+    const errors: BulkRowError[] = [];
+    const validRows: BulkImportSubjectRow[] = [];
+
+    const seenCodes = new Set<string>();
+    for (let i = 0; i < rows.length; i++) {
+      const rowNum = i + 2;
+      const parsed = bulkImportSubjectRowSchema.safeParse(rows[i]);
+      if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+          errors.push({ row: rowNum, field: issue.path.join("."), message: issue.message });
+        }
+      } else {
+        const codeUpper = parsed.data.code.toUpperCase();
+        if (seenCodes.has(codeUpper)) {
+          errors.push({ row: rowNum, field: "code", message: `Duplicate code "${parsed.data.code}" in uploaded CSV.` });
+        } else {
+          seenCodes.add(codeUpper);
+          validRows.push(parsed.data);
+        }
+      }
+    }
+
+    if (validRows.length > 0) {
+      const existingCodes = await advisorRepository.findExistingSubjectCodes(validRows.map((r) => r.code));
+      for (let i = 0; i < validRows.length; i++) {
+        const row = validRows[i];
+        if (existingCodes.has(row.code.toUpperCase())) {
+          errors.push({ row: i + 2, field: "code", message: `Subject code "${row.code}" already exists in database.` });
+        }
+      }
+    }
+
+    const result: BulkImportResult = {
+      dryRun,
+      total: rows.length,
+      valid: Math.max(0, validRows.length - errors.length),
+      inserted: 0,
+      errors,
+    };
+
+    if (dryRun || errors.length > 0) {
+      return result;
+    }
+
+    const created = await advisorRepository.bulkCreateSubjects(scope, validRows);
+    await auditService.log({
+      actorUserId: userId,
+      action: "BULK_SUBJECT_IMPORT",
+      entityType: "Subject",
+      departmentId: scope.departmentId,
+      metadata: { total: rows.length, inserted: created.length, classroomId: scope.classroomId },
+      ipAddress,
+      userAgent,
+    });
+
+    return { ...result, inserted: created.length };
+  },
+
+  // ─── Export Reports ───────────────────────────────────────────────────────
+
+  async exportDefaultersCsv(userId: string): Promise<string> {
+    const scope = await this.requireScope(userId);
+    const students = await advisorRepository.getClassroomStudentsForReport(scope.classroomId);
+
+    const headers = [
+      "Register Number",
+      "Student Name",
+      "Email",
+      "Classroom",
+      "Fee Verified",
+      "Staff Approvals (Approved/Total)",
+      "Advisor Approval",
+      "HOD Approval",
+      "Defaulter Reasons",
+    ];
+
+    const rows: (string | number)[][] = [];
+
+    for (const s of students) {
+      const totalSubjects = s.classroom.subjects.length;
+      const staffApprovedCount = s.approvals.filter((a) => a.approverRole === Role.STAFF && a.status === "APPROVED").length;
+      const staffRejectedCount = s.approvals.filter((a) => a.approverRole === Role.STAFF && a.status === "REJECTED").length;
+
+      const advisorAppr = s.approvals.find((a) => a.approverRole === Role.ADVISOR && !a.subjectId);
+      const hodAppr = s.approvals.find((a) => a.approverRole === Role.HOD && !a.subjectId);
+
+      const feeVerified = Boolean(s.feeVerification?.advisorApproved || s.feeVerification?.hodApproved);
+      const advisorDecision = (advisorAppr?.status as StageDecision) ?? "PENDING";
+      const hodDecision = (hodAppr?.status as StageDecision) ?? "PENDING";
+
+      const fv = deriveFinalVerification({
+        subjectsTotal: totalSubjects,
+        subjectsApproved: staffApprovedCount,
+        subjectsRejected: staffRejectedCount,
+        advisorDecision,
+        hodDecision,
+        feeByAdvisor: s.feeVerification?.advisorApproved ?? false,
+        feeByHod: s.feeVerification?.hodApproved ?? false,
+        isVerified: true,
+      });
+
+      if (!fv.eligible) {
+        const reasons: string[] = [];
+        if (!feeVerified) reasons.push("Pending Fee Verification");
+        if (staffRejectedCount > 0) reasons.push(`${staffRejectedCount} subject(s) rejected by staff`);
+        if (staffApprovedCount < totalSubjects) reasons.push(`Staff pending (${staffApprovedCount}/${totalSubjects} approved)`);
+        if (advisorDecision !== "APPROVED") reasons.push(`Advisor ${advisorDecision.toLowerCase()}`);
+        if (hodDecision !== "APPROVED") reasons.push(`HOD ${hodDecision.toLowerCase()}`);
+
+        rows.push([
+          s.registerNumber,
+          `${s.user.firstName} ${s.user.lastName}`,
+          s.user.email,
+          s.classroom.name,
+          feeVerified ? "YES" : "NO",
+          `${staffApprovedCount}/${totalSubjects}`,
+          advisorDecision,
+          hodDecision,
+          reasons.join("; "),
+        ]);
+      }
+    }
+
+    return toCsvString(headers, rows);
+  },
+
+  async exportClearanceSummaryCsv(userId: string): Promise<string> {
+    const scope = await this.requireScope(userId);
+    const students = await advisorRepository.getClassroomStudentsForReport(scope.classroomId);
+
+    const headers = [
+      "Register Number",
+      "Student Name",
+      "Email",
+      "Classroom",
+      "Fee Verified",
+      "Staff Approvals",
+      "Advisor Status",
+      "HOD Status",
+      "Overall Clearance",
+    ];
+
+    const rows: (string | number)[][] = [];
+
+    for (const s of students) {
+      const totalSubjects = s.classroom.subjects.length;
+      const staffApprovedCount = s.approvals.filter((a) => a.approverRole === Role.STAFF && a.status === "APPROVED").length;
+      const staffRejectedCount = s.approvals.filter((a) => a.approverRole === Role.STAFF && a.status === "REJECTED").length;
+
+      const advisorAppr = s.approvals.find((a) => a.approverRole === Role.ADVISOR && !a.subjectId);
+      const hodAppr = s.approvals.find((a) => a.approverRole === Role.HOD && !a.subjectId);
+
+      const feeVerified = Boolean(s.feeVerification?.advisorApproved || s.feeVerification?.hodApproved);
+      const advisorDecision = (advisorAppr?.status as StageDecision) ?? "PENDING";
+      const hodDecision = (hodAppr?.status as StageDecision) ?? "PENDING";
+
+      const fv = deriveFinalVerification({
+        subjectsTotal: totalSubjects,
+        subjectsApproved: staffApprovedCount,
+        subjectsRejected: staffRejectedCount,
+        advisorDecision,
+        hodDecision,
+        feeByAdvisor: s.feeVerification?.advisorApproved ?? false,
+        feeByHod: s.feeVerification?.hodApproved ?? false,
+        isVerified: true,
+      });
+
+      rows.push([
+        s.registerNumber,
+        `${s.user.firstName} ${s.user.lastName}`,
+        s.user.email,
+        s.classroom.name,
+        feeVerified ? "YES" : "NO",
+        `${staffApprovedCount}/${totalSubjects}`,
+        advisorDecision,
+        hodDecision,
+        fv.eligible ? "CLEARED" : "INCOMPLETE",
+      ]);
+    }
+
+    return toCsvString(headers, rows);
+  },
+
+  // ─── Bulk Student Import (Classroom scope) ────────────────────────────────
+
+  async bulkImportStudents(
+    csvText: string,
+    userId: string,
+    dryRun: boolean,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<BulkImportResult> {
+    const scope = await this.requireScope(userId);
+    const rows = csvToObjects(parseCsv(csvText));
+    const errors: BulkRowError[] = [];
+    const validRows: Array<ReturnType<typeof bulkImportAdvisorStudentRowSchema.parse>> = [];
+
+    const seenRegisters = new Set<string>();
+    const seenEmails = new Set<string>();
+
+    for (let i = 0; i < rows.length; i++) {
+      const rowNum = i + 2;
+      const parsed = bulkImportAdvisorStudentRowSchema.safeParse(rows[i]);
+      if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+          errors.push({ row: rowNum, field: issue.path.join("."), message: issue.message });
+        }
+      } else {
+        const reg = parsed.data.registernumber.toUpperCase();
+        const em = parsed.data.email.toLowerCase();
+        if (seenRegisters.has(reg)) {
+          errors.push({ row: rowNum, field: "registerNumber", message: `Duplicate register number "${parsed.data.registernumber}" in CSV.` });
+        } else if (seenEmails.has(em)) {
+          errors.push({ row: rowNum, field: "email", message: `Duplicate email "${parsed.data.email}" in CSV.` });
+        } else {
+          seenRegisters.add(reg);
+          seenEmails.add(em);
+          validRows.push(parsed.data);
+        }
+      }
+    }
+
+    const result: BulkImportResult = {
+      dryRun,
+      total: rows.length,
+      valid: Math.max(0, validRows.length - errors.length),
+      inserted: 0,
+      errors,
+    };
+
+    if (dryRun || errors.length > 0) return result;
+
+    let inserted = 0;
+    for (const row of validRows) {
+      try {
+        const passwordHash = await hashPassword(row.password);
+        await adminRepository.bulkCreateStudent({
+          firstName: row.firstname,
+          lastName: row.lastname,
+          email: row.email,
+          passwordHash,
+          registerNumber: row.registernumber,
+          rollNumber: row.rollnumber || null,
+          admissionYear: row.admissionyear,
+          classroomId: scope.classroomId,
+        });
+        inserted++;
+      } catch {
+        // Skip duplicate records
+      }
+    }
+
+    await auditService.log({
+      actorUserId: userId,
+      action: "BULK_STUDENT_IMPORT",
+      entityType: "Student",
+      departmentId: scope.departmentId,
+      metadata: { total: rows.length, inserted, classroomId: scope.classroomId },
+      ipAddress,
+      userAgent,
+    });
+
+    return { ...result, inserted };
   },
 };

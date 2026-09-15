@@ -840,4 +840,61 @@ export const advisorRepository = {
     };
   },
 
+  async findExistingSubjectCodes(codes: string[]) {
+    const found = await prisma.subject.findMany({
+      where: { code: { in: codes } },
+      select: { code: true },
+    });
+    return new Set(found.map((s) => s.code.toUpperCase()));
+  },
+
+  async bulkCreateSubjects(
+    scope: AdvisorScope,
+    subjects: Array<{ code: string; name: string; credits: number; semester: number }>
+  ) {
+    return prisma.$transaction(
+      subjects.map((s) =>
+        prisma.subject.create({
+          data: {
+            code: s.code,
+            name: s.name,
+            credits: s.credits,
+            semester: s.semester,
+            departmentId: scope.departmentId,
+            classroomId: scope.classroomId,
+          },
+          select: { id: true, code: true, name: true },
+        })
+      )
+    );
+  },
+
+  async getClassroomStudentsForReport(classroomId: string) {
+    return prisma.student.findMany({
+      where: { classroomId },
+      include: {
+        user: {
+          select: { firstName: true, lastName: true, email: true },
+        },
+        classroom: {
+          select: {
+            name: true,
+            batch: true,
+            semester: true,
+            section: true,
+            subjects: {
+              select: { id: true, code: true, name: true },
+            },
+          },
+        },
+        feeVerification: {
+          select: { advisorApproved: true, hodApproved: true },
+        },
+        approvals: {
+          select: { approverRole: true, subjectId: true, status: true, remarks: true },
+        },
+      },
+      orderBy: { registerNumber: "asc" },
+    });
+  },
 };

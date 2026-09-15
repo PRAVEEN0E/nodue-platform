@@ -15,10 +15,12 @@ import {
   AdvisorAvailableStaff,
 } from "@/lib/advisor-api";
 import { ApiError } from "@/lib/api";
-import { Plus, Search, RefreshCw, X } from "lucide-react";
+import { Plus, Search, RefreshCw, X, UploadCloud } from "lucide-react";
 import { PageHeader, Badge, Button, Input, Select } from "@/components/ui/controls";
 import { Modal } from "@/components/ui/overlays";
 import { TableSkeleton, EmptyState, ErrorState, Pagination, ButtonSpinner } from "@/components/ui/feedback";
+import { BulkImportModal } from "@/components/ui/BulkImportModal";
+import { bulkImportSubjects, downloadSubjectTemplate } from "@/lib/bulk-api";
 
 function staffOptionLabel(st: AdvisorAvailableStaff | AdvisorStaff): string {
   const home = "department" in st && st.department ? ` · ${st.department.code}` : "";
@@ -36,6 +38,7 @@ export default function AdvisorSubjectsPage() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [form, setForm] = useState({ code: "", name: "", credits: 3, semester: 1 });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -207,10 +210,19 @@ export default function AdvisorSubjectsPage() {
         title="Subjects"
         description="Subjects for your classroom. Open a subject to map staff."
         actions={
-          <Button onClick={() => { setFieldErrors({}); setShowCreate(true); }}>
-            <Plus style={{ width: 14, height: 14 }} />
-            Add Subject
-          </Button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowBulkImport(true)}
+            >
+              <UploadCloud style={{ width: 14, height: 14 }} />
+              Bulk Import CSV
+            </Button>
+            <Button onClick={() => { setFieldErrors({}); setShowCreate(true); }}>
+              <Plus style={{ width: 14, height: 14 }} />
+              Add Subject
+            </Button>
+          </div>
         }
       />
 
@@ -438,6 +450,16 @@ export default function AdvisorSubjectsPage() {
           </form>
         </Modal>
       )}
+
+      <BulkImportModal
+        isOpen={showBulkImport}
+        onClose={() => setShowBulkImport(false)}
+        title="Bulk Import Subjects"
+        entityName="Subjects"
+        onDownloadTemplate={downloadSubjectTemplate}
+        onUpload={bulkImportSubjects}
+        onSuccess={() => load()}
+      />
     </div>
   );
 }

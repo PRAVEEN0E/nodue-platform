@@ -264,4 +264,42 @@ export const advisorRoutes: FastifyPluginAsync = async (fastify) => {
     },
     advisorController.getFinalVerifications
   );
+
+  // ─── Bulk Subject & Student Import ───────────────────────────────────────
+  fastify.post(
+    "/subjects/bulk-import",
+    { preHandler: advisorGuard },
+    advisorController.bulkImportSubjects
+  );
+
+  fastify.get(
+    "/subjects/template",
+    { preHandler: advisorGuard },
+    advisorController.downloadSubjectTemplate
+  );
+
+  fastify.post(
+    "/students/bulk-import",
+    { preHandler: advisorGuard },
+    advisorController.bulkImportStudents
+  );
+
+  fastify.get(
+    "/students/template",
+    { preHandler: advisorGuard },
+    advisorController.downloadStudentTemplate
+  );
+
+  // ─── Exportable Reports ───────────────────────────────────────────────────
+  fastify.get(
+    "/reports/defaulters/export",
+    { preHandler: advisorGuard },
+    advisorController.exportDefaulters
+  );
+
+  fastify.get(
+    "/reports/clearance/export",
+    { preHandler: advisorGuard },
+    advisorController.exportClearanceSummary
+  );
 };

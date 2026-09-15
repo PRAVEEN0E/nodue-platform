@@ -18,6 +18,7 @@ import {
   BulkRowError,
 } from "./admin.schema";
 import { parseCsv, csvToObjects } from "../../utils/csvParser";
+import { prisma } from "../../plugins/database";
 
 const CACHE_KEYS = {
   dashboard: "cache:admin:dashboard",
@@ -430,8 +431,9 @@ export const adminService = {
   ): Promise<BulkImportResult> {
     const rows = csvToObjects(parseCsv(csvText));
     const errors: BulkRowError[] = [];
-    const validRows: Array<ReturnType<typeof bulkImportStaffRowSchema.parse>> = [];
 
+    // ── Step 1: Validate each row schema ────────────────────────────────────
+    const parsedRows: Array<ReturnType<typeof bulkImportStaffRowSchema.parse> & { _rowNum: number }> = [];
     for (let i = 0; i < rows.length; i++) {
       const rowNum = i + 2;
       const parsed = bulkImportStaffRowSchema.safeParse(rows[i]);
@@ -440,7 +442,51 @@ export const adminService = {
           errors.push({ row: rowNum, field: issue.path.join("."), message: issue.message });
         }
       } else {
-        validRows.push(parsed.data);
+        parsedRows.push({ ...parsed.data, _rowNum: rowNum });
+      }
+    }
+
+    // ── Step 2: Resolve department (code / name / UUID) → departmentId ──────
+    // Fetch all departments once, then match case-insensitively.
+    const allDepts = await prisma.department.findMany({
+      select: { id: true, code: true, name: true },
+    });
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    type ValidStaffRow = Omit<ReturnType<typeof bulkImportStaffRowSchema.parse>, "department"> & { departmentId: string };
+    const validRows: ValidStaffRow[] = [];
+
+    for (const row of parsedRows) {
+      const raw = row.department.trim();
+      let resolvedId: string | null = null;
+
+      if (UUID_RE.test(raw)) {
+        // Treat as literal UUID — verify it exists
+        const found = allDepts.find((d) => d.id === raw);
+        resolvedId = found ? found.id : null;
+      } else {
+        // Match against code (exact, case-insensitive) then name (case-insensitive)
+        const lower = raw.toLowerCase();
+        const byCode = allDepts.find((d) => d.code.toLowerCase() === lower);
+        if (byCode) {
+          resolvedId = byCode.id;
+        } else {
+          const byName = allDepts.find((d) => d.name.toLowerCase() === lower);
+          resolvedId = byName ? byName.id : null;
+        }
+      }
+
+      if (!resolvedId) {
+        errors.push({
+          row: row._rowNum,
+          field: "department",
+          message: `Unknown department "${raw}". Use a valid department code (e.g. CSE, IT, MECH) or full name.`,
+        });
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { _rowNum, department, ...rest } = row;
+        validRows.push({ ...rest, departmentId: resolvedId });
       }
     }
 
@@ -466,7 +512,7 @@ export const adminService = {
           passwordHash,
           employeeCode: row.employeecode,
           designation: row.designation,
-          departmentId: row.departmentid,
+          departmentId: row.departmentId,
           isActive: true,
         });
         inserted++;

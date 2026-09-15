@@ -112,10 +112,27 @@ Jane,Smith,jane.smith@college.edu,SecurePass1,RA2011003010002,,2021,<classroom-u
 
 export const STAFF_CSV_TEMPLATE = `# NDCP Staff Bulk Import Template
 # Lines starting with '#' are ignored.
-# Required: firstName, lastName, email, password, employeeCode, designation, departmentId
-firstName,lastName,email,password,employeeCode,designation,departmentId
-Alice,Kumar,alice.kumar@college.edu,SecurePass1,EMP001,Associate Professor,<department-uuid>
-Bob,Raj,bob.raj@college.edu,SecurePass1,EMP002,Assistant Professor,<department-uuid>
+# Required columns: firstName, lastName, email, password, employeeCode, designation, department
+# In the 'department' column, you can provide either:
+#   - Department Code (e.g., CSE, IT, MECH, AIML, AIDS, ECE, EEE, CIVIL, BME, MDE, CYBER SECURITY)
+#   - Department Name (e.g., Computer Science and Engineering, Mechanical Engineering, etc.)
+#
+# Available Departments:
+#   CSE             : Computer Science and Engineering
+#   IT              : Information Technology
+#   AIML            : Artificial Intelligence and Machine Learning
+#   AIDS            : Artificial Intelligence and Data Science
+#   MECH            : Mechanical Engineering
+#   ECE             : Electronics and Communication Engineering
+#   EEE             : Electrical and Electronics Engineering
+#   CIVIL           : Civil Engineering
+#   BME             : Biomedical Engineering
+#   MDE             : Medical Electronics Engineering
+#   CYBER SECURITY  : Cyber Security
+#
+firstName,lastName,email,password,employeeCode,designation,department
+Alice,Kumar,alice.kumar@college.edu,SecurePass1,EMP001,Associate Professor,CSE
+Bob,Raj,bob.raj@college.edu,SecurePass1,EMP002,Assistant Professor,Mechanical Engineering
 `;
 
 export const SUBJECT_CSV_TEMPLATE = `# NDCP Subject Bulk Import Template (Advisor scope)

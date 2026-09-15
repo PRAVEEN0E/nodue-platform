@@ -160,7 +160,7 @@ export const bulkImportStaffRowSchema = z.object({
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Password needs uppercase, lowercase, and number"),
   employeecode: z.string().min(2, "Employee code must be at least 2 characters").max(30).trim(),
   designation: z.string().min(2, "Designation must be at least 2 characters").max(80).trim(),
-  departmentid: z.string().uuid("departmentId must be a valid UUID"),
+  department: z.string().min(1, "Department (name, code, or ID) is required").trim(),
 });
 
 export type BulkImportStaffRow = z.infer<typeof bulkImportStaffRowSchema>;

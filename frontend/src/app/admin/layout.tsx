@@ -8,7 +8,6 @@ import {
   UserCog,
   Users,
   Briefcase,
-  GraduationCap,
   FileText,
 } from "lucide-react";
 
@@ -23,7 +22,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { href: "/admin/departments", label: "Departments", icon: Building2 },
         { href: "/admin/hods", label: "HODs", icon: UserCog },
         { href: "/admin/staff", label: "Staff", icon: Briefcase },
-        { href: "/admin/students", label: "Students", icon: GraduationCap },
         { href: "/admin/users", label: "Users", icon: Users },
         { href: "/admin/audit-logs", label: "Audit Logs", icon: FileText },
       ]}

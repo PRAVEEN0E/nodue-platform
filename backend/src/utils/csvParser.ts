@@ -81,7 +81,11 @@ export function csvToObjects(rows: string[][]): Record<string, string>[] {
  */
 export function toCsvString(headers: string[], rows: (string | number | boolean | null | undefined)[][]): string {
   const escape = (v: string | number | boolean | null | undefined): string => {
-    const s = v == null ? "" : String(v);
+    let s = v == null ? "" : String(v);
+    // Prevent CSV Formula Injection (CWE-1236)
+    if (/^[=+\-@\t\r]/.test(s)) {
+      s = `'${s}`;
+    }
     if (s.includes(",") || s.includes('"') || s.includes("\n")) {
       return `"${s.replace(/"/g, '""')}"`;
     }

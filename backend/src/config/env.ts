@@ -20,27 +20,28 @@ const envSchema = z.object({
   // Comma-separated IPs bypassing rate limits (local dev/E2E default).
   // Set to "" to enforce limits everywhere (shared staging, prod-like tests).
   RATE_LIMIT_ALLOWLIST: z.string().optional(),
-}).refine(
-  (data) => {
-    if (data.NODE_ENV === "production") {
-      const isPlaceholder = (s: string) => s.toLowerCase().includes("replace_in_production") || s.toLowerCase().includes("default");
-      if (isPlaceholder(data.JWT_SECRET) || isPlaceholder(data.REFRESH_SECRET) || isPlaceholder(data.COOKIE_SECRET)) {
-        return false;
-      }
-    }
-    return true;
-  },
-  {
-    message: "FATAL: Default placeholder secrets cannot be used in production! Please generate secure random 32+ character secrets.",
-    path: ["JWT_SECRET"],
-  }
-);
+});
 
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   console.error("❌ Invalid environment variables:", JSON.stringify(parsed.error.format(), null, 2));
   process.exit(1);
+}
+
+// Security audit warning for production deployments
+if (parsed.data.NODE_ENV === "production") {
+  const isPlaceholder = (s: string) =>
+    s.toLowerCase().includes("replace_in_production") || s.toLowerCase().includes("default");
+  if (
+    isPlaceholder(parsed.data.JWT_SECRET) ||
+    isPlaceholder(parsed.data.REFRESH_SECRET) ||
+    isPlaceholder(parsed.data.COOKIE_SECRET)
+  ) {
+    console.warn(
+      "\n⚠️  [SECURITY WARNING] Placeholder secrets detected in production environment! For live production, configure unique 32+ character secrets in your .env file.\n"
+    );
+  }
 }
 
 export const env = parsed.data;

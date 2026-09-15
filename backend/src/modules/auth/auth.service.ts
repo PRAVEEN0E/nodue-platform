@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { prisma } from "../../plugins/database";
 import { verifyPassword, hashPassword } from "../../utils/password";
-import { UnauthorizedError, ValidationError, NotFoundError } from "../../utils/errors";
+import { UnauthorizedError, ValidationError, NotFoundError, TooManyRequestsError } from "../../utils/errors";
 import { auditService } from "../../utils/auditService";
 import { cacheService } from "../../plugins/redis";
 import { env } from "../../config/env";
@@ -10,6 +10,11 @@ import {
   ChangePasswordInput,
 } from "./auth.schema";
 import { Role } from "@prisma/client";
+
+// Pre-computed dummy Argon2id hash used to prevent timing-based user enumeration
+const DUMMY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQxMjM0NTY3OA$9lAekgBkJ8m23B75t30H3oX+wEfgQ7t9t1pDkX6kK4E";
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_SECONDS = 15 * 60; // 15 minutes
 
 export interface TokenPair {
   accessToken: string;
@@ -44,8 +49,18 @@ export class AuthService {
     };
     rawRefreshToken: string;
   }> {
+    const normalizedEmail = input.email.toLowerCase().trim();
+    const lockoutKey = `auth:lockout:${normalizedEmail}`;
+    const failedAttemptsKey = `auth:failed:${normalizedEmail}`;
+
+    // 1. Check if account is temporarily locked out
+    const isLocked = await cacheService.get<boolean>(lockoutKey);
+    if (isLocked) {
+      throw new TooManyRequestsError("Too many failed login attempts. Account temporarily locked for 15 minutes.");
+    }
+
     const user = await prisma.user.findUnique({
-      where: { email: input.email },
+      where: { email: normalizedEmail },
       include: {
         department: {
           select: { id: true, code: true, name: true },
@@ -53,7 +68,23 @@ export class AuthService {
       },
     });
 
-    if (!user) {
+    // Constant-time execution: run Argon2 verify against dummy hash even if user doesn't exist
+    const passwordHash = user ? user.passwordHash : DUMMY_HASH;
+    const isPasswordValid = await verifyPassword(passwordHash, input.password);
+
+    if (!user || !isPasswordValid) {
+      // Increment failed attempts counter
+      const currentFailures = (await cacheService.get<number>(failedAttemptsKey)) || 0;
+      const nextFailures = currentFailures + 1;
+
+      if (nextFailures >= MAX_FAILED_ATTEMPTS) {
+        await cacheService.set(lockoutKey, true, LOCKOUT_DURATION_SECONDS);
+        await cacheService.del(failedAttemptsKey);
+        throw new TooManyRequestsError("Account locked due to 5 consecutive failed login attempts. Try again in 15 minutes.");
+      } else {
+        await cacheService.set(failedAttemptsKey, nextFailures, LOCKOUT_DURATION_SECONDS);
+      }
+
       throw new UnauthorizedError("Invalid email or password");
     }
 
@@ -61,10 +92,9 @@ export class AuthService {
       throw new UnauthorizedError("Your account has been deactivated. Please contact an administrator.");
     }
 
-    const isPasswordValid = await verifyPassword(user.passwordHash, input.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedError("Invalid email or password");
-    }
+    // Reset failed login counters upon successful authentication
+    await cacheService.del(failedAttemptsKey);
+    await cacheService.del(lockoutKey);
 
     // Generate secure cryptographically random refresh token
     const rawRefreshToken = crypto.randomBytes(40).toString("hex");

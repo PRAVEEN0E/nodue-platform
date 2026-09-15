@@ -69,7 +69,13 @@ export function csvToObjects(rows: string[][]): Record<string, string>[] {
   return dataRows.map((row) => {
     const obj: Record<string, string> = {};
     headers.forEach((h, i) => {
-      obj[h] = row[i]?.trim() ?? "";
+      let val = row[i]?.trim() ?? "";
+      // Neutralize CSV Formula Injection (CWE-1236) on ingestion
+      // If field starts with =, +, -, @, \t, \r and is not a plain number, strip dangerous leading chars
+      if (/^[=+\-@\t\r]/.test(val) && !/^[+\-]?\d+(\.\d+)?$/.test(val)) {
+        val = val.replace(/^[=+\-@\t\r]+/, "");
+      }
+      obj[h] = val;
     });
     return obj;
   });

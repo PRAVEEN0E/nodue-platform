@@ -12,6 +12,9 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error("Application error boundary triggered:", error);
+    if (typeof document !== "undefined") {
+      document.title = "Something Went Wrong | NoDue Platform";
+    }
   }, [error]);
 
   return (

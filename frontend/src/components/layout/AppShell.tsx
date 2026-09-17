@@ -54,6 +54,20 @@ export default function AppShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [sidebarOpen]);
 
+  const crumbs = pathname.split("/").filter(Boolean);
+
+  useEffect(() => {
+    const activeItem = nav.find((item) =>
+      item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`)
+    );
+    const titleText =
+      activeItem?.label ||
+      (crumbs.length > 0 ? formatCrumb(crumbs[crumbs.length - 1]) : workspace);
+    if (typeof document !== "undefined") {
+      document.title = `${titleText} | NoDue Platform`;
+    }
+  }, [pathname, nav, crumbs, workspace]);
+
   // NOTE: No `mounted` guard here by design. Every node rendered below is
   // SSR-deterministic (static nav config, usePathname, initial auth state),
   // so the server HTML and the first client render always match. Auth resolves
@@ -61,7 +75,6 @@ export default function AppShell({
   // loading shell meanwhile. A client-only `mounted` boolean would diverge
   // from the server under Fast Refresh (preserved hook state) and recreate
   // the hydration mismatch this shell exists to prevent.
-  const crumbs = pathname.split("/").filter(Boolean);
   const initials = user ? `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase() : "–";
 
   return (

@@ -14,6 +14,8 @@ export default function robots(): MetadataRoute.Robots {
           "/advisor/",
           "/staff/",
           "/student/",
+          "/profile",
+          "/profile/",
           "/api/",
         ],
       },

@@ -1,10 +1,15 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
 import { FileQuestion, Home } from "lucide-react";
 
 export default function NotFound() {
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.title = "Page Not Found | NoDue Platform";
+    }
+  }, []);
   return (
     <div
       style={{

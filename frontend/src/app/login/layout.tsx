@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://nodue-platform.vercel.app";
+
 export const metadata: Metadata = {
-  title: "Sign In | NDCP - No Due Clearance Portal",
+  title: "Sign In | NoDue Platform — Academic Clearance Portal",
   description:
-    "Sign in to NDCP (No Due Clearance Portal) — One Portal. Zero Pending. Secure access for students, staff, advisors, and HODs.",
+    "Sign in to NoDue Platform (NDCP) — One Portal. Zero Pending. Secure clearance access for students, staff, advisors, and HODs.",
   alternates: {
-    canonical: "https://nodue-platform.vercel.app/login",
+    canonical: `${APP_URL}/login`,
   },
   openGraph: {
-    title: "Sign In | NDCP - No Due Clearance Portal",
+    title: "Sign In | NoDue Platform — Academic Clearance Portal",
     description:
-      "NDCP — One Portal. Zero Pending. Secure sign-in for students, faculty advisors, department heads, and academic staff.",
-    url: "https://nodue-platform.vercel.app/login",
+      "NoDue Platform (NDCP) — One Portal. Zero Pending. Secure sign-in for students, faculty advisors, department heads, and academic staff.",
+    url: `${APP_URL}/login`,
   },
 };
 

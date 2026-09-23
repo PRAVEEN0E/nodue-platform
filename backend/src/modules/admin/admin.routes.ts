@@ -17,6 +17,8 @@ import {
   staffIdParamSchema,
   updateUserSchema,
   userIdParamSchema,
+  departmentIdParamSchema,
+  assignHodSchema,
   CreateHodInput,
   UpdateHodStatusInput,
   GetUsersQuery,
@@ -26,6 +28,7 @@ import {
   UpdateStaffInput,
   GetStaffQuery,
   UpdateUserInput,
+  AssignHodInput,
 } from "./admin.schema";
 
 // All admin routes require both authentication and ADMIN role authorization
@@ -102,6 +105,19 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       preValidation: [validateParams(userIdParamSchema)],
     },
     adminController.deleteUser
+  );
+
+  // POST /api/v1/admin/departments/:id/assign-hod
+  fastify.post<{ Params: { id: string }; Body: AssignHodInput }>(
+    "/departments/:id/assign-hod",
+    {
+      preHandler: adminGuard,
+      preValidation: [
+        validateParams(departmentIdParamSchema),
+        validateBody(assignHodSchema),
+      ],
+    },
+    adminController.assignHodToDepartment
   );
 
   // ─── Staff Management (ADMIN-only lifecycle) ──────────────────────────────

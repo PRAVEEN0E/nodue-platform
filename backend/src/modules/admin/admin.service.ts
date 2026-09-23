@@ -244,6 +244,48 @@ export const adminService = {
     return deleted;
   },
 
+  async assignHodToDepartment(
+    departmentId: string,
+    targetUserId: string,
+    actorUserId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
+    const department = await adminRepository.findDepartmentById(departmentId);
+    if (!department) {
+      throw new NotFoundError("Department not found.");
+    }
+
+    const user = await adminRepository.findUserById(targetUserId);
+    if (!user) {
+      throw new NotFoundError("User not found.");
+    }
+
+    const assigned = await adminRepository.assignHodToDepartment(departmentId, targetUserId);
+
+    await Promise.all([
+      cacheService.del(CACHE_KEYS.dashboard),
+      cacheService.del(CACHE_KEYS.departments),
+      cacheService.del(CACHE_KEYS.departmentsList),
+    ]);
+
+    await auditService.log({
+      actorUserId,
+      action: "HOD_ASSIGNED",
+      entityType: "Department",
+      entityId: departmentId,
+      metadata: {
+        departmentCode: department.code,
+        assignedUserId: targetUserId,
+        userEmail: user.email,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return assigned;
+  },
+
   // ─── Staff Management (ADMIN-only lifecycle) ────────────────────────────────
   // Staff account CRUD belongs exclusively to Admin. Advisors may only assign
   // existing staff through subject-staff mapping (advisor module). Department

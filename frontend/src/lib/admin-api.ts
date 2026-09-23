@@ -154,6 +154,17 @@ export async function updateHodStatus(
   return res.data;
 }
 
+export async function assignHodToDepartment(
+  departmentId: string,
+  userId: string
+): Promise<{ user: SafeUser }> {
+  const res = await apiClient<{ success: boolean; data: { user: SafeUser } }>(
+    `/admin/departments/${departmentId}/assign-hod`,
+    { method: "POST", data: { userId } }
+  );
+  return res.data;
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export interface GetUsersParams {

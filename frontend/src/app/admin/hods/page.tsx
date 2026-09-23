@@ -5,12 +5,15 @@ import {
   getHods,
   createHod,
   updateHodStatus,
+  deleteAdminUser,
   getAdminDepartments,
   SafeUser,
   Department,
   CreateHodPayload,
 } from "@/lib/admin-api";
 import { ApiError } from "@/lib/api";
+import { Modal } from "@/components/ui/overlays";
+import { Button } from "@/components/ui/controls";
 
 function CreateHodModal({
   departments,
@@ -123,10 +126,10 @@ function CreateHodModal({
           </button>
         </div>
         <p
-        id="hod-create-desc"
-        style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}
+          id="hod-create-desc"
+          style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}
         >
-        Create a new Head of Department account and assign it to a department without an HOD.
+          Create a new Head of Department account and assign it to a department without an HOD.
         </p>
 
         {serverError && (
@@ -264,6 +267,10 @@ export default function HodsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterActive, setFilterActive] = useState<"" | "true" | "false">("");
   const [toggling, setToggling] = useState<string | null>(null);
+  const [deletingHod, setDeletingHod] = useState<SafeUser | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -303,6 +310,21 @@ export default function HodsPage() {
       setError(err instanceof ApiError ? err.message : "Failed to update HOD status");
     } finally {
       setToggling(null);
+    }
+  };
+
+  const handleDeleteHod = async () => {
+    if (!deletingHod) return;
+    setDeleteSubmitting(true);
+    setDeleteError(null);
+    try {
+      await deleteAdminUser(deletingHod.id);
+      setDeletingHod(null);
+      await load();
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "Failed to delete HOD account.");
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -405,7 +427,7 @@ export default function HodsPage() {
                   <th>Department</th>
                   <th>Status</th>
                   <th>Created</th>
-                  <th>Actions</th>
+                  <th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -439,18 +461,29 @@ export default function HodsPage() {
                       <td className="admin-table-secondary">
                         {new Date(hod.createdAt).toLocaleDateString("en-IN")}
                       </td>
-                      <td>
-                        <button
-                          className={`admin-btn-sm ${hod.isActive ? "admin-btn-sm--danger" : "admin-btn-sm--success"}`}
-                          onClick={() => handleToggleStatus(hod)}
-                          disabled={toggling === hod.id}
-                        >
-                          {toggling === hod.id
-                            ? "…"
-                            : hod.isActive
-                            ? "Deactivate"
-                            : "Activate"}
-                        </button>
+                      <td style={{ textAlign: "right" }}>
+                        <div style={{ display: "inline-flex", gap: 6 }}>
+                          <button
+                            className={`admin-btn-sm ${hod.isActive ? "admin-btn-sm--danger" : "admin-btn-sm--success"}`}
+                            onClick={() => handleToggleStatus(hod)}
+                            disabled={toggling === hod.id}
+                          >
+                            {toggling === hod.id
+                              ? "…"
+                              : hod.isActive
+                              ? "Deactivate"
+                              : "Activate"}
+                          </button>
+                          <button
+                            className="admin-btn-sm admin-btn-sm--danger"
+                            onClick={() => {
+                              setDeletingHod(hod);
+                              setDeleteError(null);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -467,6 +500,33 @@ export default function HodsPage() {
           onClose={() => setShowCreate(false)}
           onSuccess={load}
         />
+      )}
+
+      {deletingHod && (
+        <Modal
+          title="Delete HOD Account"
+          description={`Are you sure you want to delete ${deletingHod.firstName} ${deletingHod.lastName} (${deletingHod.email})?`}
+          onClose={() => setDeletingHod(null)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setDeletingHod(null)}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={handleDeleteHod} disabled={deleteSubmitting}>
+                {deleteSubmitting ? "Deleting…" : "Delete Account"}
+              </Button>
+            </>
+          }
+        >
+          {deleteError && (
+            <div className="nd-alert nd-alert-error" role="alert" style={{ marginBottom: 14 }}>
+              <span>{deleteError}</span>
+            </div>
+          )}
+          <p style={{ fontSize: 14, color: "#64748b" }}>
+            This will remove the HOD user account and unassign the HOD from the department. The department, classrooms, students, and staff will remain intact so a new HOD can be assigned.
+          </p>
+        </Modal>
       )}
     </div>
   );

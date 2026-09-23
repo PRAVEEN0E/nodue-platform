@@ -10,6 +10,7 @@ import {
   UpdateStaffInput,
   GetStaffQuery,
   UpdateUserInput,
+  AssignHodInput,
 } from "./admin.schema";
 import { STUDENT_CSV_TEMPLATE, STAFF_CSV_TEMPLATE } from "../../utils/csvParser";
 
@@ -102,6 +103,21 @@ export const adminController = {
       userAgent
     );
     return reply.send({ success: true, data: result });
+  },
+
+  async assignHodToDepartment(
+    request: FastifyRequest<{ Params: { id: string }; Body: AssignHodInput }>,
+    reply: FastifyReply
+  ) {
+    const { userId, ip, userAgent } = requestMeta(request);
+    const updatedUser = await adminService.assignHodToDepartment(
+      request.params.id,
+      request.body.userId,
+      userId,
+      ip,
+      userAgent
+    );
+    return reply.send({ success: true, data: { user: updatedUser } });
   },
 
   async getAuditLogs(

@@ -494,27 +494,88 @@ export const adminRepository = {
   },
 
   async updateUser(userId: string, data: UpdateUserInput) {
-    return prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(data.firstName !== undefined && { firstName: data.firstName }),
-        ...(data.lastName !== undefined && { lastName: data.lastName }),
-        ...(data.email !== undefined && { email: data.email }),
-        ...(data.role !== undefined && { role: data.role }),
-        ...(data.departmentId !== undefined && { departmentId: data.departmentId }),
-        ...(data.isActive !== undefined && { isActive: data.isActive }),
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        role: true,
-        departmentId: true,
-        isActive: true,
-        createdAt: true,
-        department: { select: { id: true, code: true, name: true } },
-      },
+    return prisma.$transaction(async (tx) => {
+      const current = await tx.user.findUnique({
+        where: { id: userId },
+        select: { role: true, departmentId: true },
+      });
+
+      const newRole = data.role !== undefined ? data.role : current?.role;
+      const newDeptId = data.departmentId !== undefined ? data.departmentId : current?.departmentId;
+
+      // If user was HOD and role is changing away from HOD OR departmentId is changing:
+      if (
+        current?.role === Role.HOD &&
+        (newRole !== Role.HOD || (data.departmentId !== undefined && data.departmentId !== current.departmentId))
+      ) {
+        await tx.department.updateMany({
+          where: { hodUserId: userId },
+          data: { hodUserId: null },
+        });
+      }
+
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: {
+          ...(data.firstName !== undefined && { firstName: data.firstName }),
+          ...(data.lastName !== undefined && { lastName: data.lastName }),
+          ...(data.email !== undefined && { email: data.email }),
+          ...(data.role !== undefined && { role: data.role }),
+          ...(data.departmentId !== undefined && { departmentId: data.departmentId }),
+          ...(data.isActive !== undefined && { isActive: data.isActive }),
+        },
+        select: safeUserSelect,
+      });
+
+      // If updated user is HOD and has departmentId, link as department HOD
+      if (newRole === Role.HOD && newDeptId) {
+        // Clear any previous HOD of this department first
+        await tx.department.updateMany({
+          where: { id: newDeptId, hodUserId: { not: userId } },
+          data: { hodUserId: null },
+        });
+
+        await tx.department.update({
+          where: { id: newDeptId },
+          data: { hodUserId: userId },
+        });
+      }
+
+      return updated;
+    });
+  },
+
+  async assignHodToDepartment(departmentId: string, userId: string) {
+    return prisma.$transaction(async (tx) => {
+      // 1. Clear any previous HOD of target department
+      await tx.department.updateMany({
+        where: { id: departmentId },
+        data: { hodUserId: null },
+      });
+
+      // 2. Clear any previous department where this user was HOD
+      await tx.department.updateMany({
+        where: { hodUserId: userId },
+        data: { hodUserId: null },
+      });
+
+      // 3. Update user role to HOD and departmentId to target department
+      const updatedUser = await tx.user.update({
+        where: { id: userId },
+        data: {
+          role: Role.HOD,
+          departmentId: departmentId,
+        },
+        select: safeUserSelect,
+      });
+
+      // 4. Set department's hodUserId
+      await tx.department.update({
+        where: { id: departmentId },
+        data: { hodUserId: userId },
+      });
+
+      return updatedUser;
     });
   },
 

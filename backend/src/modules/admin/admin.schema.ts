@@ -192,5 +192,15 @@ export const userIdParamSchema = z.object({
   id: z.string().uuid("Invalid user ID format"),
 });
 
+export const departmentIdParamSchema = z.object({
+  id: z.string().uuid("Invalid department ID format"),
+});
+
+export const assignHodSchema = z.object({
+  userId: z.string().uuid("Invalid user ID format"),
+});
+
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+export type AssignHodInput = z.infer<typeof assignHodSchema>;
+
 

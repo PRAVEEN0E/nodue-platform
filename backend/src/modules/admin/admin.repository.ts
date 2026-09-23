@@ -7,6 +7,7 @@ import {
   GetStaffQuery,
   CreateStaffInput,
   UpdateStaffInput,
+  UpdateUserInput,
 } from "./admin.schema";
 
 // ─── Safe user select (never returns passwordHash or token secrets) ───────────
@@ -183,6 +184,13 @@ export const adminRepository = {
       });
 
       return newUser;
+    });
+  },
+
+  async findUserById(id: string) {
+    return prisma.user.findUnique({
+      where: { id },
+      select: safeUserSelect,
     });
   },
 
@@ -482,6 +490,57 @@ export const adminRepository = {
       });
 
       return { studentId: student.id, userId: user.id };
+    });
+  },
+
+  async updateUser(userId: string, data: UpdateUserInput) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.firstName !== undefined && { firstName: data.firstName }),
+        ...(data.lastName !== undefined && { lastName: data.lastName }),
+        ...(data.email !== undefined && { email: data.email }),
+        ...(data.role !== undefined && { role: data.role }),
+        ...(data.departmentId !== undefined && { departmentId: data.departmentId }),
+        ...(data.isActive !== undefined && { isActive: data.isActive }),
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        departmentId: true,
+        isActive: true,
+        createdAt: true,
+        department: { select: { id: true, code: true, name: true } },
+      },
+    });
+  },
+
+  async deleteUser(userId: string) {
+    return prisma.$transaction(async (tx) => {
+      // If user is HOD of any department, unlink HOD
+      await tx.department.updateMany({
+        where: { hodUserId: userId },
+        data: { hodUserId: null },
+      });
+
+      // Delete refresh tokens
+      await tx.refreshToken.deleteMany({
+        where: { userId },
+      });
+
+      // Delete user profiles if present
+      await tx.student.deleteMany({ where: { userId } });
+      await tx.staff.deleteMany({ where: { userId } });
+      await tx.advisor.deleteMany({ where: { userId } });
+
+      // Delete user record
+      return tx.user.delete({
+        where: { id: userId },
+        select: { id: true, email: true, firstName: true, lastName: true },
+      });
     });
   },
 };

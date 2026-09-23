@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { getHodStudents, getHodStudentStatus, HodStudent } from "@/lib/hod-api";
+import { getHodStudents, getHodStudentStatus, updateHodStudent, HodStudent } from "@/lib/hod-api";
 import { ApiError } from "@/lib/api";
-import { Search, RefreshCw, Activity } from "lucide-react";
-import { PageHeader, Badge, Button } from "@/components/ui/controls";
-import { TableSkeleton, EmptyState, ErrorState, Pagination } from "@/components/ui/feedback";
+import { Search, RefreshCw, Activity, Edit2 } from "lucide-react";
+import { PageHeader, Badge, Button, Input, Select } from "@/components/ui/controls";
+import { Modal } from "@/components/ui/overlays";
+import { TableSkeleton, EmptyState, ErrorState, Pagination, ButtonSpinner } from "@/components/ui/feedback";
 import { ClearanceTicks } from "@/components/clearance/ClearanceTicks";
 import { ClearanceModal } from "@/components/clearance/ClearanceModal";
 
@@ -19,6 +20,19 @@ export default function HodStudentsPage() {
   const [viewingStatusStudent, setViewingStatusStudent] = useState<HodStudent | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+
+  const [editingStudent, setEditingStudent] = useState<HodStudent | null>(null);
+  const [editForm, setEditForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    registerNumber: "",
+    rollNumber: "",
+    admissionYear: 2024,
+    isActive: true,
+  });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,12 +53,50 @@ export default function HodStudentsPage() {
     return () => clearTimeout(t);
   }, [load, search]);
 
+  const openEdit = (s: HodStudent) => {
+    setEditingStudent(s);
+    setEditForm({
+      firstName: s.user.firstName,
+      lastName: s.user.lastName,
+      email: s.user.email,
+      registerNumber: s.registerNumber,
+      rollNumber: s.rollNumber || "",
+      admissionYear: s.admissionYear,
+      isActive: s.user.isActive,
+    });
+    setEditError(null);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    setEditSubmitting(true);
+    setEditError(null);
+    try {
+      await updateHodStudent(editingStudent.id, {
+        firstName: editForm.firstName.trim(),
+        lastName: editForm.lastName.trim(),
+        email: editForm.email.trim() || undefined,
+        registerNumber: editForm.registerNumber.trim(),
+        rollNumber: editForm.rollNumber.trim() || null,
+        admissionYear: Number(editForm.admissionYear),
+        isActive: editForm.isActive,
+      });
+      setEditingStudent(null);
+      load();
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : "Failed to update student details.");
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
         breadcrumb="HOD / Students"
         title="Department Students"
-        description="All students in your department. Click the progress icon to view their clearance pipeline."
+        description="All students in your department. Edit details or view clearance progress pipeline."
         actions={
           <Button variant="secondary" onClick={load} aria-label="Refresh">
             <RefreshCw style={{ width: 14, height: 14 }} />
@@ -123,16 +175,27 @@ export default function HodStudentsPage() {
                       </Badge>
                     </td>
                     <td style={{ textAlign: "right" }}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setViewingStatusStudent(s)}
-                        aria-label={"View clearance progress for " + s.user.firstName}
-                        title="View clearance progress"
-                      >
-                        <Activity style={{ width: 14, height: 14 }} />
-                        Progress
-                      </Button>
+                      <div style={{ display: "inline-flex", gap: 6 }}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setViewingStatusStudent(s)}
+                          aria-label={"View clearance progress for " + s.user.firstName}
+                          title="View clearance progress"
+                        >
+                          <Activity style={{ width: 14, height: 14 }} />
+                          Progress
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => openEdit(s)}
+                          aria-label={"Edit student " + s.user.firstName}
+                        >
+                          <Edit2 style={{ width: 13, height: 13 }} />
+                          Edit
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -141,6 +204,81 @@ export default function HodStudentsPage() {
           </div>
           <Pagination page={meta.page} totalPages={meta.totalPages} total={meta.total} unit="students" onChange={setCurrentPage} />
         </div>
+      )}
+
+      {editingStudent && (
+        <Modal
+          title="Edit Student Details"
+          description={`Updating information for ${editingStudent.user.firstName} ${editingStudent.user.lastName}`}
+          onClose={() => setEditingStudent(null)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setEditingStudent(null)}>Cancel</Button>
+              <Button type="submit" form="hod-student-edit-form" disabled={editSubmitting}>
+                {editSubmitting && <ButtonSpinner />}
+                {editSubmitting ? "Saving…" : "Save Changes"}
+              </Button>
+            </>
+          }
+        >
+          {editError && (
+            <div className="nd-alert nd-alert-error" role="alert" style={{ marginBottom: 14 }}>
+              <span>{editError}</span>
+            </div>
+          )}
+          <form id="hod-student-edit-form" onSubmit={handleEditSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div className="nd-form-grid">
+              <Input
+                label="First name"
+                required
+                value={editForm.firstName}
+                onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+              />
+              <Input
+                label="Last name"
+                required
+                value={editForm.lastName}
+                onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+              />
+            </div>
+            <Input
+              label="Email"
+              type="email"
+              value={editForm.email}
+              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+            />
+            <div className="nd-form-grid">
+              <Input
+                label="Register number"
+                required
+                value={editForm.registerNumber}
+                onChange={(e) => setEditForm({ ...editForm, registerNumber: e.target.value })}
+              />
+              <Input
+                label="Roll number"
+                value={editForm.rollNumber}
+                onChange={(e) => setEditForm({ ...editForm, rollNumber: e.target.value })}
+              />
+            </div>
+            <div className="nd-form-grid">
+              <Input
+                label="Admission year"
+                type="number"
+                required
+                value={editForm.admissionYear}
+                onChange={(e) => setEditForm({ ...editForm, admissionYear: parseInt(e.target.value, 10) || 2024 })}
+              />
+              <Select
+                label="Account status"
+                value={editForm.isActive ? "active" : "inactive"}
+                onChange={(e) => setEditForm({ ...editForm, isActive: e.target.value === "active" })}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </Select>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {viewingStatusStudent && (

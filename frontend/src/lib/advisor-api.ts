@@ -122,9 +122,19 @@ export async function createAdvisorStudent(payload: CreateAdvisorStudentPayload)
   return res.data;
 }
 
+export interface UpdateAdvisorStudentPayload {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  registerNumber?: string;
+  rollNumber?: string | null;
+  admissionYear?: number;
+  isActive?: boolean;
+}
+
 export async function updateAdvisorStudent(
   id: string,
-  payload: Partial<Pick<CreateAdvisorStudentPayload, "firstName" | "lastName" | "email" | "rollNumber" | "admissionYear"> & { isActive: boolean }>
+  payload: UpdateAdvisorStudentPayload
 ) {
   const res = await apiClient<{ success: boolean; data: AdvisorStudentDetail }>(`/advisor/students/${id}`, {
     method: "PATCH",

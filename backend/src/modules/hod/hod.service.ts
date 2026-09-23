@@ -18,6 +18,7 @@ import {
   GetHodFeesQuery,
   ApproveFeeVerificationInput,
   GetHodStudentsQuery,
+  UpdateHodStudentInput,
 } from "./hod.schema";
 import { approvalEngine, deriveFinalVerification, StageDecision } from "../approval-engine/approval-engine.service";
 import { Role } from "@prisma/client";
@@ -327,6 +328,13 @@ export const hodService = {
         throw new ForbiddenError("Access denied. Advisor does not belong to your department.");
       }
       throw new NotFoundError("Advisor not found");
+    }
+
+    if (data.email && data.email !== advisor.user.email) {
+      const existing = await prisma.user.findUnique({ where: { email: data.email } });
+      if (existing) {
+        throw new ConflictError(`A user with email '${data.email}' already exists.`);
+      }
     }
 
     const updated = await hodRepository.updateAdvisorUser(advisor.userId, data);
@@ -684,5 +692,13 @@ export const hodService = {
       classroomId: student.classroomId,
       departmentId: student.departmentId,
     });
+  },
+
+  async updateStudent(departmentId: string, studentId: string, input: UpdateHodStudentInput) {
+    const updated = await hodRepository.updateStudentInDepartment(studentId, departmentId, input);
+    if (!updated) {
+      throw new NotFoundError("Student not found in this department.");
+    }
+    return updated;
   },
 };

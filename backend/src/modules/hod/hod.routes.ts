@@ -25,6 +25,7 @@ import {
   approveFeeVerificationSchema,
   studentIdParamSchema,
   getHodStudentsQuerySchema,
+  updateHodStudentSchema,
   CreateClassroomInput,
   UpdateClassroomInput,
   GetClassroomsQuery,
@@ -39,6 +40,7 @@ import {
   GetHodFeesQuery,
   ApproveFeeVerificationInput,
   GetHodStudentsQuery,
+  UpdateHodStudentInput,
 } from "./hod.schema";
 
 
@@ -265,6 +267,18 @@ export const hodRoutes: FastifyPluginAsync = async (fastify) => {
       preValidation: [validateParams(studentIdParamSchema)],
     },
     hodController.getStudentStatus
+  );
+
+  fastify.patch<{ Params: { id: string }; Body: UpdateHodStudentInput }>(
+    "/students/:id",
+    {
+      preHandler: hodGuard,
+      preValidation: [
+        validateParams(studentIdParamSchema),
+        validateBody(updateHodStudentSchema),
+      ],
+    },
+    hodController.updateStudent
   );
 };
 

@@ -133,7 +133,7 @@ export const staffIdParamSchema = z.object({
 export const bulkImportStudentRowSchema = z.object({
   firstname: z.string().min(2, "First name must be at least 2 characters").max(50).trim(),
   lastname: z.string().min(2, "Last name must be at least 2 characters").max(50).trim(),
-  email: z.string().email("Invalid email address").toLowerCase().trim(),
+  email: z.string().email("Invalid email address").toLowerCase().trim().optional(),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -153,7 +153,7 @@ export type BulkImportStudentRow = z.infer<typeof bulkImportStudentRowSchema>;
 export const bulkImportStaffRowSchema = z.object({
   firstname: z.string().min(2, "First name must be at least 2 characters").max(50).trim(),
   lastname: z.string().min(2, "Last name must be at least 2 characters").max(50).trim(),
-  email: z.string().email("Invalid email address").toLowerCase().trim(),
+  email: z.string().email("Invalid email address").toLowerCase().trim().optional(),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -178,4 +178,19 @@ export interface BulkImportResult {
   inserted: number;
   errors: BulkRowError[];
 }
+
+export const updateUserSchema = z.object({
+  firstName: z.string().min(2, "First name must be at least 2 characters").max(50).trim().optional(),
+  lastName: z.string().min(2, "Last name must be at least 2 characters").max(50).trim().optional(),
+  email: z.string().email("Invalid email address").toLowerCase().trim().optional(),
+  role: z.nativeEnum(Role).optional(),
+  departmentId: z.string().uuid("Invalid department ID").nullable().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const userIdParamSchema = z.object({
+  id: z.string().uuid("Invalid user ID format"),
+});
+
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 

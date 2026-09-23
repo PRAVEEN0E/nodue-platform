@@ -37,6 +37,7 @@ export const updateStudentSchema = z.object({
   firstName: z.string().min(2).max(50).trim().optional(),
   lastName: z.string().min(2).max(50).trim().optional(),
   email: z.string().email("Invalid email address").toLowerCase().trim().optional(),
+  registerNumber: z.string().min(3, "Register number must be at least 3 characters").max(30).trim().optional(),
   isActive: z.boolean().optional(),
   rollNumber: z.string().max(30).trim().nullable().optional(),
   admissionYear: z.coerce.number().int().min(2000).max(2100).optional(),

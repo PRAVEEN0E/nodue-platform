@@ -9,6 +9,7 @@ import {
   CreateStaffInput,
   UpdateStaffInput,
   GetStaffQuery,
+  UpdateUserInput,
 } from "./admin.schema";
 import { STUDENT_CSV_TEMPLATE, STAFF_CSV_TEMPLATE } from "../../utils/csvParser";
 
@@ -72,6 +73,35 @@ export const adminController = {
   ) {
     const result = await adminService.getUsers(request.query);
     return reply.send({ success: true, ...result });
+  },
+
+  async updateUser(
+    request: FastifyRequest<{ Params: { id: string }; Body: UpdateUserInput }>,
+    reply: FastifyReply
+  ) {
+    const { userId, ip, userAgent } = requestMeta(request);
+    const updated = await adminService.updateUser(
+      request.params.id,
+      request.body,
+      userId,
+      ip,
+      userAgent
+    );
+    return reply.send({ success: true, data: { user: updated } });
+  },
+
+  async deleteUser(
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply
+  ) {
+    const { userId, ip, userAgent } = requestMeta(request);
+    const result = await adminService.deleteUser(
+      request.params.id,
+      userId,
+      ip,
+      userAgent
+    );
+    return reply.send({ success: true, data: result });
   },
 
   async getAuditLogs(

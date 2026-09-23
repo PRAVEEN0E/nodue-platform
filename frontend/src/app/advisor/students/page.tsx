@@ -49,8 +49,16 @@ export default function AdvisorStudentsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const [detail, setDetail] = useState<AdvisorStudentDetail | null>(null);
-  const [editing, setEditing] = useState<AdvisorStudentDetail | null>(null);
-  const [editActive, setEditActive] = useState(true);
+  const [editing, setEditing] = useState<AdvisorStudent | null>(null);
+  const [editForm, setEditForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    registerNumber: "",
+    rollNumber: "",
+    admissionYear: 2024,
+    isActive: true,
+  });
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -134,15 +142,18 @@ export default function AdvisorStudentsPage() {
     }
   };
 
-  const openEdit = async (id: string) => {
-    try {
-      const s = await getAdvisorStudentById(id);
-      setEditing(s);
-      setEditActive(s.user.isActive);
-      setEditError(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load student.");
-    }
+  const openEdit = (s: AdvisorStudent) => {
+    setEditing(s);
+    setEditForm({
+      firstName: s.user.firstName,
+      lastName: s.user.lastName,
+      email: s.user.email,
+      registerNumber: s.registerNumber,
+      rollNumber: s.rollNumber || "",
+      admissionYear: s.admissionYear,
+      isActive: s.user.isActive,
+    });
+    setEditError(null);
   };
 
   const handleEdit = async (ev: React.FormEvent) => {
@@ -151,7 +162,15 @@ export default function AdvisorStudentsPage() {
     setEditSubmitting(true);
     setEditError(null);
     try {
-      await updateAdvisorStudent(editing.id, { isActive: editActive });
+      await updateAdvisorStudent(editing.id, {
+        firstName: editForm.firstName.trim(),
+        lastName: editForm.lastName.trim(),
+        email: editForm.email.trim() || undefined,
+        registerNumber: editForm.registerNumber.trim(),
+        rollNumber: editForm.rollNumber.trim() || null,
+        admissionYear: Number(editForm.admissionYear),
+        isActive: editForm.isActive,
+      });
       setEditing(null);
       if (detail?.id === editing.id) {
         const s = await getAdvisorStudentById(editing.id);
@@ -285,7 +304,7 @@ export default function AdvisorStudentsPage() {
                         <Button variant="ghost" size="sm" onClick={() => openDetail(s.id)} aria-label={`View ${s.user.firstName}`}>
                           <Eye style={{ width: 14, height: 14 }} />
                         </Button>
-                        <Button variant="secondary" size="sm" onClick={() => openEdit(s.id)}>
+                        <Button variant="secondary" size="sm" onClick={() => openEdit(s)}>
                           Edit
                         </Button>
                       </div>
@@ -354,26 +373,44 @@ export default function AdvisorStudentsPage() {
 
       {editing && (
         <Modal
-          title="Edit student status"
-          description={`${editing.user.firstName} ${editing.user.lastName} · ${editing.registerNumber}`}
+          title="Edit Student Details"
+          description={`Updating details for ${editing.user.firstName} ${editing.user.lastName}`}
           onClose={() => setEditing(null)}
           footer={
             <>
               <Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
               <Button type="submit" form="advisor-student-edit" disabled={editSubmitting}>
                 {editSubmitting && <ButtonSpinner />}
-                {editSubmitting ? "Saving…" : "Save"}
+                {editSubmitting ? "Saving…" : "Save Changes"}
               </Button>
             </>
           }
         >
           {editError && <div className="nd-alert nd-alert-error" role="alert"><span>{editError}</span></div>}
-          <form id="advisor-student-edit" onSubmit={handleEdit}>
-            <Select label="Account status" value={editActive ? "active" : "inactive"}
-              onChange={(e) => setEditActive(e.target.value === "active")}>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </Select>
+          <form id="advisor-student-edit" onSubmit={handleEdit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div className="nd-form-grid">
+              <Input label="First name" required value={editForm.firstName}
+                onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} />
+              <Input label="Last name" required value={editForm.lastName}
+                onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} />
+            </div>
+            <Input label="Email" type="email" value={editForm.email}
+              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+            <div className="nd-form-grid">
+              <Input label="Register number" required value={editForm.registerNumber}
+                onChange={(e) => setEditForm({ ...editForm, registerNumber: e.target.value })} />
+              <Input label="Roll number" value={editForm.rollNumber}
+                onChange={(e) => setEditForm({ ...editForm, rollNumber: e.target.value })} />
+            </div>
+            <div className="nd-form-grid">
+              <Input label="Admission year" type="number" required value={editForm.admissionYear}
+                onChange={(e) => setEditForm({ ...editForm, admissionYear: parseInt(e.target.value, 10) || 2024 })} />
+              <Select label="Account status" value={editForm.isActive ? "active" : "inactive"}
+                onChange={(e) => setEditForm({ ...editForm, isActive: e.target.value === "active" })}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </Select>
+            </div>
           </form>
         </Modal>
       )}

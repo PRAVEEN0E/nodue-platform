@@ -181,6 +181,7 @@ export const advisorService = {
       isActive: input.isActive,
     });
     await advisorRepository.updateStudentProfile(studentId, {
+      registerNumber: input.registerNumber,
       rollNumber: input.rollNumber,
       admissionYear: input.admissionYear,
     });

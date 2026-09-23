@@ -43,6 +43,7 @@ export const createAdvisorSchema = z.object({
 export const updateAdvisorSchema = z.object({
   firstName: z.string().min(2).max(50).trim().optional(),
   lastName: z.string().min(2).max(50).trim().optional(),
+  email: z.string().email("Invalid email address").toLowerCase().trim().optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -138,6 +139,16 @@ export const getHodStudentsQuerySchema = z.object({
   classroomId: z.string().uuid().optional(),
 });
 
+export const updateHodStudentSchema = z.object({
+  firstName: z.string().min(2).max(50).trim().optional(),
+  lastName: z.string().min(2).max(50).trim().optional(),
+  email: z.string().email("Invalid email address").toLowerCase().trim().optional(),
+  registerNumber: z.string().min(3, "Register number must be at least 3 characters").max(30).trim().optional(),
+  rollNumber: z.string().max(30).trim().nullable().optional(),
+  admissionYear: z.coerce.number().int().min(2000).max(2100).optional(),
+  isActive: z.boolean().optional(),
+});
+
 // ─── Inferred Types ───────────────────────────────────────────────────────────
 
 export type CreateClassroomInput = z.infer<typeof createClassroomSchema>;
@@ -156,3 +167,4 @@ export type DecideHodApprovalInput = z.infer<typeof decideHodApprovalSchema>;
 export type GetHodFeesQuery = z.infer<typeof getHodFeesQuerySchema>;
 export type ApproveFeeVerificationInput = z.infer<typeof approveFeeVerificationSchema>;
 export type GetHodStudentsQuery = z.infer<typeof getHodStudentsQuerySchema>;
+export type UpdateHodStudentInput = z.infer<typeof updateHodStudentSchema>;

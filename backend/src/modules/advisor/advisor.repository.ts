@@ -291,11 +291,12 @@ export const advisorRepository = {
 
   async updateStudentProfile(
     studentId: string,
-    data: Pick<UpdateStudentInput, "rollNumber" | "admissionYear">
+    data: Pick<UpdateStudentInput, "registerNumber" | "rollNumber" | "admissionYear">
   ) {
     return prisma.student.update({
       where: { id: studentId },
       data: {
+        ...(data.registerNumber !== undefined && { registerNumber: data.registerNumber }),
         ...(data.rollNumber !== undefined && { rollNumber: data.rollNumber || null }),
         ...(data.admissionYear !== undefined && { admissionYear: data.admissionYear }),
       },

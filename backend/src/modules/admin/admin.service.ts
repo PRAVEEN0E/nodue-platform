@@ -2,7 +2,7 @@ import { adminRepository } from "./admin.repository";
 import { cacheService } from "../../plugins/redis";
 import { auditService } from "../../utils/auditService";
 import { hashPassword } from "../../utils/password";
-import { ConflictError, NotFoundError, ForbiddenError } from "../../utils/errors";
+import { ConflictError, NotFoundError, ForbiddenError, ValidationError } from "../../utils/errors";
 import {
   CreateHodInput,
   GetUsersQuery,
@@ -12,6 +12,7 @@ import {
   CreateStaffInput,
   UpdateStaffInput,
   GetStaffQuery,
+  UpdateUserInput,
   bulkImportStudentRowSchema,
   bulkImportStaffRowSchema,
   BulkImportResult,
@@ -172,6 +173,75 @@ export const adminService = {
 
   async getUsers(query: GetUsersQuery) {
     return adminRepository.getPaginatedUsers(query);
+  },
+
+  async updateUser(
+    targetUserId: string,
+    input: UpdateUserInput,
+    actorUserId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
+    const existing = await adminRepository.findUserById(targetUserId);
+    if (!existing) {
+      throw new NotFoundError("User not found.");
+    }
+
+    if (input.email && input.email !== existing.email) {
+      const emailTaken = await adminRepository.findUserByEmail(input.email);
+      if (emailTaken) {
+        throw new ConflictError(`A user with email '${input.email}' already exists.`);
+      }
+    }
+
+    const updated = await adminRepository.updateUser(targetUserId, input);
+
+    if (input.isActive === false) {
+      await cacheService.del(`user:active:${targetUserId}`);
+    }
+
+    await auditService.log({
+      actorUserId,
+      action: "USER_UPDATED",
+      entityType: "User",
+      entityId: targetUserId,
+      metadata: { changes: input },
+      ipAddress,
+      userAgent,
+    });
+
+    return updated;
+  },
+
+  async deleteUser(
+    targetUserId: string,
+    actorUserId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
+    if (targetUserId === actorUserId) {
+      throw new ValidationError("You cannot delete your own admin account.");
+    }
+
+    const existing = await adminRepository.findUserById(targetUserId);
+    if (!existing) {
+      throw new NotFoundError("User not found.");
+    }
+
+    const deleted = await adminRepository.deleteUser(targetUserId);
+    await cacheService.del(`user:active:${targetUserId}`);
+
+    await auditService.log({
+      actorUserId,
+      action: "USER_DELETED",
+      entityType: "User",
+      entityId: targetUserId,
+      metadata: { email: existing.email, name: `${existing.firstName} ${existing.lastName}` },
+      ipAddress,
+      userAgent,
+    });
+
+    return deleted;
   },
 
   // ─── Staff Management (ADMIN-only lifecycle) ────────────────────────────────
@@ -394,10 +464,13 @@ export const adminService = {
     for (const row of validRows) {
       try {
         const passwordHash = await hashPassword(row.password);
+        const email =
+          row.email ||
+          `${row.registernumber.toLowerCase().replace(/[^a-z0-9]/g, "")}@student.no-due.local`;
         await adminRepository.bulkCreateStudent({
           firstName: row.firstname,
           lastName: row.lastname,
-          email: row.email,
+          email,
           passwordHash,
           registerNumber: row.registernumber,
           rollNumber: row.rollnumber || null,
@@ -504,10 +577,13 @@ export const adminService = {
     for (const row of validRows) {
       try {
         const passwordHash = await hashPassword(row.password);
+        const email =
+          row.email ||
+          `${row.employeecode.toLowerCase().replace(/[^a-z0-9]/g, "")}@staff.no-due.local`;
         await adminRepository.createStaffAccount({
           firstName: row.firstname,
           lastName: row.lastname,
-          email: row.email,
+          email,
           password: row.password,
           passwordHash,
           employeeCode: row.employeecode,

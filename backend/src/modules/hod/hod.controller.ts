@@ -15,6 +15,7 @@ import {
   GetHodFeesQuery,
   ApproveFeeVerificationInput,
   GetHodStudentsQuery,
+  UpdateHodStudentInput,
 } from "./hod.schema";
 
 export const hodController = {
@@ -259,6 +260,18 @@ export const hodController = {
     reply: FastifyReply
   ) {
     const data = await hodService.getStudentStatus(request.departmentId!, request.params.id);
+    return reply.status(200).send({ success: true, data });
+  },
+
+  async updateStudent(
+    request: FastifyRequest<{ Params: { id: string }; Body: UpdateHodStudentInput }>,
+    reply: FastifyReply
+  ) {
+    const data = await hodService.updateStudent(
+      request.departmentId!,
+      request.params.id,
+      request.body
+    );
     return reply.status(200).send({ success: true, data });
   },
 };

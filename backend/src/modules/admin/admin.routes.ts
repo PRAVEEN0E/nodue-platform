@@ -15,6 +15,8 @@ import {
   getStaffQuerySchema,
   hodIdParamSchema,
   staffIdParamSchema,
+  updateUserSchema,
+  userIdParamSchema,
   CreateHodInput,
   UpdateHodStatusInput,
   GetUsersQuery,
@@ -23,6 +25,7 @@ import {
   CreateStaffInput,
   UpdateStaffInput,
   GetStaffQuery,
+  UpdateUserInput,
 } from "./admin.schema";
 
 // All admin routes require both authentication and ADMIN role authorization
@@ -76,6 +79,29 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       preValidation: [validateQuery(getUsersQuerySchema)],
     },
     adminController.getUsers
+  );
+
+  // PATCH /api/v1/admin/users/:id
+  fastify.patch<{ Params: { id: string }; Body: UpdateUserInput }>(
+    "/users/:id",
+    {
+      preHandler: adminGuard,
+      preValidation: [
+        validateParams(userIdParamSchema),
+        validateBody(updateUserSchema),
+      ],
+    },
+    adminController.updateUser
+  );
+
+  // DELETE /api/v1/admin/users/:id
+  fastify.delete<{ Params: { id: string } }>(
+    "/users/:id",
+    {
+      preHandler: adminGuard,
+      preValidation: [validateParams(userIdParamSchema)],
+    },
+    adminController.deleteUser
   );
 
   // ─── Staff Management (ADMIN-only lifecycle) ──────────────────────────────

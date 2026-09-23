@@ -109,16 +109,17 @@ export function toCsvString(headers: string[], rows: (string | number | boolean 
 
 export const STUDENT_CSV_TEMPLATE = `# NDCP Student Bulk Import Template
 # Lines starting with '#' are ignored.
-# Required: firstName, lastName, email, password, registerNumber, admissionYear, classroomId
-# Optional: rollNumber
-firstName,lastName,email,password,registerNumber,rollNumber,admissionYear,classroomId
-John,Doe,john.doe@college.edu,SecurePass1,RA2011003010001,101,2020,<classroom-uuid>
-Jane,Smith,jane.smith@college.edu,SecurePass1,RA2011003010002,,2021,<classroom-uuid>
+# Required: firstName, lastName, password, registerNumber, admissionYear, classroomId
+# Optional: rollNumber, email
+firstName,lastName,password,registerNumber,rollNumber,admissionYear,classroomId
+John,Doe,SecurePass1,RA2011003010001,101,2020,<classroom-uuid>
+Jane,Smith,SecurePass1,RA2011003010002,,2021,<classroom-uuid>
 `;
 
 export const STAFF_CSV_TEMPLATE = `# NDCP Staff Bulk Import Template
 # Lines starting with '#' are ignored.
-# Required columns: firstName, lastName, email, password, employeeCode, designation, department
+# Required columns: firstName, lastName, password, employeeCode, designation, department
+# Optional: email
 # In the 'department' column, you can provide either:
 #   - Department Code (e.g., CSE, IT, MECH, AIML, AIDS, ECE, EEE, CIVIL, BME, MDE, CYBER SECURITY)
 #   - Department Name (e.g., Computer Science and Engineering, Mechanical Engineering, etc.)
@@ -136,9 +137,9 @@ export const STAFF_CSV_TEMPLATE = `# NDCP Staff Bulk Import Template
 #   MDE             : Medical Electronics Engineering
 #   CYBER SECURITY  : Cyber Security
 #
-firstName,lastName,email,password,employeeCode,designation,department
-Alice,Kumar,alice.kumar@college.edu,SecurePass1,EMP001,Associate Professor,CSE
-Bob,Raj,bob.raj@college.edu,SecurePass1,EMP002,Assistant Professor,Mechanical Engineering
+firstName,lastName,password,employeeCode,designation,department
+Alice,Kumar,SecurePass1,EMP001,Associate Professor,CSE
+Bob,Raj,SecurePass1,EMP002,Assistant Professor,Mechanical Engineering
 `;
 
 export const SUBJECT_CSV_TEMPLATE = `# NDCP Subject Bulk Import Template (Advisor scope)
@@ -153,9 +154,9 @@ CS4001,Machine Learning,3,4
 
 export const ADVISOR_STUDENT_CSV_TEMPLATE = `# NDCP Advisor Student Bulk Import Template (Classroom scope)
 # Lines starting with '#' are ignored.
-# Required: firstName, lastName, email, password, registerNumber, admissionYear
-# Optional: rollNumber
-firstName,lastName,email,password,registerNumber,rollNumber,admissionYear
-John,Doe,john.doe@college.edu,SecurePass1,RA2011003010001,101,2020
-Jane,Smith,jane.smith@college.edu,SecurePass1,RA2011003010002,,2021
+# Required: firstName, lastName, password, registerNumber, admissionYear
+# Optional: rollNumber, email
+firstName,lastName,password,registerNumber,rollNumber,admissionYear
+John,Doe,SecurePass1,RA2011003010001,101,2020
+Jane,Smith,SecurePass1,RA2011003010002,,2021
 `;

@@ -124,6 +124,7 @@ export interface CreateAdvisorPayload {
 export interface UpdateAdvisorPayload {
   firstName?: string;
   lastName?: string;
+  email?: string;
   isActive?: boolean;
 }
 
@@ -430,6 +431,30 @@ import type { StudentStatusSnapshot } from "./student-api";
 export async function getHodStudentStatus(studentId: string): Promise<StudentStatusSnapshot> {
   const res = await apiClient<{ success: boolean; data: StudentStatusSnapshot }>(
     `/hod/students/${studentId}/status`
+  );
+  return res.data;
+}
+
+export interface UpdateHodStudentPayload {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  registerNumber?: string;
+  rollNumber?: string | null;
+  admissionYear?: number;
+  isActive?: boolean;
+}
+
+export async function updateHodStudent(
+  studentId: string,
+  payload: UpdateHodStudentPayload
+): Promise<HodStudent> {
+  const res = await apiClient<{ success: boolean; data: HodStudent }>(
+    `/hod/students/${studentId}`,
+    {
+      method: "PATCH",
+      data: payload,
+    }
   );
   return res.data;
 }

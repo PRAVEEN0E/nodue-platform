@@ -1,5 +1,6 @@
 import { prisma } from "../../plugins/database";
 import { Prisma, Role } from "@prisma/client";
+import { ConflictError } from "../../utils/errors";
 import {
   CreateClassroomInput,
   UpdateClassroomInput,
@@ -10,6 +11,7 @@ import {
   GetHodAuditLogsQuery,
   GetHodApprovalsQuery,
   GetHodFeesQuery,
+  UpdateHodStudentInput,
 } from "./hod.schema";
 import { batchGetClearanceSummaries } from "../approval-engine/approval-engine.service";
 
@@ -412,6 +414,7 @@ export const hodRepository = {
       data: {
         ...(data.firstName !== undefined && { firstName: data.firstName }),
         ...(data.lastName !== undefined && { lastName: data.lastName }),
+        ...(data.email !== undefined && { email: data.email }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),
       },
       select: {
@@ -845,6 +848,51 @@ export const hodRepository = {
     return prisma.student.findFirst({
       where: { id: studentId, departmentId },
       select: { id: true, classroomId: true, departmentId: true, user: { select: { id: true } } },
+    });
+  },
+
+  async updateStudentInDepartment(
+    studentId: string,
+    departmentId: string,
+    data: UpdateHodStudentInput
+  ) {
+    const student = await prisma.student.findFirst({
+      where: { id: studentId, departmentId },
+      include: { user: true },
+    });
+    if (!student) return null;
+
+    if (data.email && data.email !== student.user.email) {
+      const existing = await prisma.user.findUnique({ where: { email: data.email } });
+      if (existing) {
+        throw new ConflictError(`A user with email '${data.email}' already exists.`);
+      }
+    }
+
+    return prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: student.userId },
+        data: {
+          ...(data.firstName !== undefined && { firstName: data.firstName }),
+          ...(data.lastName !== undefined && { lastName: data.lastName }),
+          ...(data.email !== undefined && { email: data.email }),
+          ...(data.isActive !== undefined && { isActive: data.isActive }),
+        },
+      });
+
+      await tx.student.update({
+        where: { id: studentId },
+        data: {
+          ...(data.registerNumber !== undefined && { registerNumber: data.registerNumber }),
+          ...(data.rollNumber !== undefined && { rollNumber: data.rollNumber || null }),
+          ...(data.admissionYear !== undefined && { admissionYear: data.admissionYear }),
+        },
+      });
+
+      return tx.student.findUnique({
+        where: { id: studentId },
+        include: { user: { select: { id: true, firstName: true, lastName: true, email: true, isActive: true } } },
+      });
     });
   },
 };

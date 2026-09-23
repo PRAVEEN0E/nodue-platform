@@ -181,6 +181,34 @@ export async function getUsers(
   );
 }
 
+export interface UpdateAdminUserPayload {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  role?: Role;
+  departmentId?: string | null;
+  isActive?: boolean;
+}
+
+export async function updateAdminUser(
+  userId: string,
+  payload: UpdateAdminUserPayload
+): Promise<{ user: SafeUser }> {
+  const res = await apiClient<{ success: boolean; data: { user: SafeUser } }>(
+    `/admin/users/${userId}`,
+    { method: "PATCH", data: payload }
+  );
+  return res.data;
+}
+
+export async function deleteAdminUser(userId: string): Promise<{ id: string }> {
+  const res = await apiClient<{ success: boolean; data: { id: string } }>(
+    `/admin/users/${userId}`,
+    { method: "DELETE" }
+  );
+  return res.data;
+}
+
 // ─── Staff Management (ADMIN only) ───────────────────────────────────────────
 // Staff accounts are created, edited, activated, deactivated, and deleted
 // exclusively by the administrator. Advisors only assign existing staff.

@@ -49,6 +49,7 @@ export default function HodAdvisorsPage() {
   const [editingAdvisor, setEditingAdvisor] = useState<AdvisorUser | null>(null);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -136,6 +137,7 @@ export default function HodAdvisorsPage() {
       await updateAdvisor(editingAdvisor.id, {
         firstName: editFirstName.trim(),
         lastName: editLastName.trim(),
+        email: editEmail.trim().toLowerCase(),
       });
       setEditingAdvisor(null);
       fetchData();
@@ -297,6 +299,7 @@ export default function HodAdvisorsPage() {
                               setEditingAdvisor(a);
                               setEditFirstName(a.firstName);
                               setEditLastName(a.lastName);
+                              setEditEmail(a.email);
                               setEditError(null);
                             }}
                           >
@@ -477,6 +480,14 @@ export default function HodAdvisorsPage() {
                 autoComplete="family-name"
               />
             </div>
+            <Input
+              label="Email"
+              type="email"
+              required
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+              autoComplete="email"
+            />
           </form>
         </Modal>
       )}

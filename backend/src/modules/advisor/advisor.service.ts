@@ -28,6 +28,7 @@ import { parseCsv, csvToObjects, toCsvString } from "../../utils/csvParser";
 import { deriveFinalVerification, StageDecision } from "../approval-engine/approval-engine.service";
 import { BulkImportResult, BulkRowError } from "../admin/admin.schema";
 import { adminRepository } from "../admin/admin.repository";
+import { studentRepository } from "../student/student.repository";
 
 const dashboardCacheKey = (userId: string) => `cache:advisor:dashboard:${userId}`;
 
@@ -101,12 +102,16 @@ export const advisorService = {
   ) {
     const scope = await this.requireScope(userId);
 
+    const studentEmail =
+      input.email?.trim() ||
+      `${input.registerNumber.toLowerCase().replace(/[^a-z0-9]/g, "")}@student.institution.edu`;
+
     const [emailTaken, registerTaken] = await Promise.all([
-      advisorRepository.findUserByEmail(input.email),
+      advisorRepository.findUserByEmail(studentEmail),
       advisorRepository.findStudentByRegisterNumber(input.registerNumber),
     ]);
     if (emailTaken) {
-      throw new ConflictError(`A user with email '${input.email}' already exists.`);
+      throw new ConflictError(`A user with identifier '${input.registerNumber}' already exists.`);
     }
     if (registerTaken) {
       throw new ConflictError(
@@ -118,7 +123,11 @@ export const advisorService = {
 
     let created: { userId: string; studentId: string };
     try {
-      created = await advisorRepository.createStudent(scope, { ...input, passwordHash });
+      created = await advisorRepository.createStudent(scope, {
+        ...input,
+        email: studentEmail,
+        passwordHash,
+      });
     } catch (err: unknown) {
       if (isUniqueViolation(err)) {
         throw new ConflictError("A user with these unique details already exists.");
@@ -460,6 +469,30 @@ export const advisorService = {
     return advisorRepository.getFinalVerifications(scope, query);
   },
 
+  // ─── Student Clearance Status (advisor view) ──────────────────────────────
+  // Returns the full status snapshot for a single student in the advisor's
+  // classroom, using the same derivation logic as the student's own status page.
+
+  async getStudentStatus(userId: string, studentId: string) {
+    const scope = await this.requireScope(userId);
+    // Enforce classroom scope: the student must belong to this advisor's room.
+    const student = await advisorRepository.findStudentInScope(studentId, scope.classroomId);
+    if (!student) {
+      const elsewhere = await advisorRepository.findStudentByIdAnywhere(studentId);
+      if (elsewhere) {
+        throw new ForbiddenError("This student belongs to another classroom.");
+      }
+      throw new NotFoundError("Student not found.");
+    }
+    // Reuse the student repository's snapshot logic.
+    return studentRepository.getStatusSnapshot({
+      studentId,
+      userId: student.user.id,
+      classroomId: scope.classroomId,
+      departmentId: scope.departmentId,
+    });
+  },
+
   // ─── Approvals (Phase 7: advisor stage) ───────────────────────────────────
 
   async getApprovals(userId: string, query: GetAdvisorApprovalsQuery) {
@@ -766,7 +799,7 @@ export const advisorService = {
         }
       } else {
         const reg = parsed.data.registernumber.toUpperCase();
-        const em = parsed.data.email.toLowerCase();
+        const em = (parsed.data.email || `${parsed.data.registernumber.toLowerCase().replace(/[^a-z0-9]/g, "")}@student.institution.edu`).toLowerCase();
         if (seenRegisters.has(reg)) {
           errors.push({ row: rowNum, field: "registerNumber", message: `Duplicate register number "${parsed.data.registernumber}" in CSV.` });
         } else if (seenEmails.has(em)) {
@@ -796,7 +829,9 @@ export const advisorService = {
         await adminRepository.bulkCreateStudent({
           firstName: row.firstname,
           lastName: row.lastname,
-          email: row.email,
+          email:
+            row.email ||
+            `${row.registernumber.toLowerCase().replace(/[^a-z0-9]/g, "")}@student.institution.edu`,
           passwordHash,
           registerNumber: row.registernumber,
           rollNumber: row.rollnumber || null,

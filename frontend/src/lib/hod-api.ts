@@ -377,3 +377,60 @@ export async function approveStudentFeeVerification(
   );
   return res.data;
 }
+
+// ─── Students (department clearance view) ─────────────────────────────────────
+
+export interface HodStudent {
+  id: string;
+  registerNumber: string;
+  rollNumber: string | null;
+  admissionYear: number;
+  createdAt: string;
+  classroom: {
+    id: string;
+    name: string;
+    batch: string;
+    semester: number;
+    section: string;
+  };
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    isActive: boolean;
+  };
+  clearance?: import("./advisor-api").ClearanceStepSummary;
+}
+
+export interface GetHodStudentsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  classroomId?: string;
+}
+
+export async function getHodStudents(
+  params?: GetHodStudentsParams
+): Promise<{ data: HodStudent[]; meta: PaginationMeta }> {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.search) qs.set("search", params.search);
+  if (params?.classroomId) qs.set("classroomId", params.classroomId);
+  const q = qs.toString();
+  const res = await apiClient<{ success: boolean; data: HodStudent[]; meta: PaginationMeta }>(
+    `/hod/students${q ? `?${q}` : ""}`
+  );
+  return { data: res.data, meta: res.meta };
+}
+
+import type { StudentStatusSnapshot } from "./student-api";
+
+export async function getHodStudentStatus(studentId: string): Promise<StudentStatusSnapshot> {
+  const res = await apiClient<{ success: boolean; data: StudentStatusSnapshot }>(
+    `/hod/students/${studentId}/status`
+  );
+  return res.data;
+}
+

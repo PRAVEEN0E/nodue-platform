@@ -11,6 +11,7 @@ import {
   GetHodApprovalsQuery,
   GetHodFeesQuery,
 } from "./hod.schema";
+import { batchGetClearanceSummaries } from "../approval-engine/approval-engine.service";
 
 export const hodRepository = {
   // ─── Department Overview & Metrics ──────────────────────────────────────────
@@ -785,4 +786,66 @@ export const hodRepository = {
       ],
     });
   },
+
+  // ─── Students (department scope, for HOD clearance view) ─────────────────
+
+  async getStudents(departmentId: string, query: { page: number; limit: number; search?: string; classroomId?: string }) {
+    const { page, limit, search, classroomId } = query;
+    const where: Prisma.StudentWhereInput = { departmentId };
+    if (classroomId) where.classroomId = classroomId;
+    if (search) {
+      where.OR = [
+        { user: { firstName: { contains: search, mode: "insensitive" } } },
+        { user: { lastName: { contains: search, mode: "insensitive" } } },
+        { registerNumber: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const [rows, total] = await Promise.all([
+      prisma.student.findMany({
+        where,
+        select: {
+          id: true,
+          registerNumber: true,
+          rollNumber: true,
+          admissionYear: true,
+          createdAt: true,
+          classroom: { select: { id: true, name: true, batch: true, semester: true, section: true } },
+          user: { select: { id: true, firstName: true, lastName: true, email: true, isActive: true } },
+        },
+        orderBy: [{ classroom: { name: "asc" } }, { registerNumber: "asc" }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.student.count({ where }),
+    ]);
+
+    const summaries = await batchGetClearanceSummaries(
+      rows.map((r) => ({ id: r.id, classroomId: r.classroom.id }))
+    );
+
+    const enriched = rows.map((r) => ({
+      ...r,
+      clearance: summaries.get(r.id) ?? {
+        staff: { status: "PENDING" as const, approved: 0, total: 0 },
+        advisor: { status: "PENDING" as const },
+        hod: { status: "PENDING" as const },
+        fee: { satisfied: false },
+        final: { state: "NOT_READY" as const },
+      },
+    }));
+
+    return {
+      data: enriched,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  },
+
+  async findStudentInDepartment(studentId: string, departmentId: string) {
+    return prisma.student.findFirst({
+      where: { id: studentId, departmentId },
+      select: { id: true, classroomId: true, departmentId: true, user: { select: { id: true } } },
+    });
+  },
 };
+

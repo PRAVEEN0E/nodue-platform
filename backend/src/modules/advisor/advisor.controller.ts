@@ -226,6 +226,14 @@ export const advisorController = {
     return reply.send({ success: true, data: result });
   },
 
+  // ─── Student Clearance Status (advisor view) ─────────────────────────────
+
+  async getStudentStatus(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const { userId } = requestMeta(request);
+    const data = await advisorService.getStudentStatus(userId, request.params.id);
+    return reply.send({ success: true, data });
+  },
+
   // ─── Bulk Import & Reports ────────────────────────────────────────────────
 
   async bulkImportSubjects(request: FastifyRequest, reply: FastifyReply) {

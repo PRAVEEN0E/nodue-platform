@@ -1,12 +1,13 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Role } from "@prisma/client";
+import { hashPassword } from "../src/utils/password";
 
 const prisma = new PrismaClient();
 
 // ─── Production / system seed ─────────────────────────────────────────────
-// Contains ONLY required system configuration (the 11 departments).
-// It must NEVER create demo users, classrooms, or transactional data.
-// For local development fixtures, run the opt-in demo seed instead:
-//   npx tsx prisma/seed.demo.ts
+// Seeds required system configuration:
+// 1. The 11 official academic departments.
+// 2. The system Administrator account (admin@institution.edu).
+// Never creates dummy users or demo classrooms.
 
 const DEPARTMENTS = [
   { code: "AIML", name: "Artificial Intelligence and Machine Learning" },
@@ -23,8 +24,9 @@ const DEPARTMENTS = [
 ];
 
 async function main() {
-  console.log("Seeding required system configuration (departments only)...");
+  console.log("Seeding system configuration (11 official departments + Admin)...");
 
+  // Upsert the 11 official departments
   for (const dept of DEPARTMENTS) {
     const record = await prisma.department.upsert({
       where: { code: dept.code },
@@ -35,6 +37,45 @@ async function main() {
       },
     });
     console.log(`  Department: ${record.code}`);
+  }
+
+  // Ensure any dummy departments not in the official list are cleaned up
+  const officialCodes = DEPARTMENTS.map((d) => d.code);
+  const dummyDepts = await prisma.department.deleteMany({
+    where: { code: { notIn: officialCodes } },
+  });
+  if (dummyDepts.count > 0) {
+    console.log(`  Cleaned up ${dummyDepts.count} non-official dummy departments.`);
+  }
+
+  // Ensure initial system administrator account exists
+  const adminPasswordHash = await hashPassword("Admin@12345");
+  const adminUser = await prisma.user.upsert({
+    where: { email: "admin@institution.edu" },
+    update: {
+      role: Role.ADMIN,
+      isActive: true,
+    },
+    create: {
+      email: "admin@institution.edu",
+      passwordHash: adminPasswordHash,
+      firstName: "Super",
+      lastName: "Administrator",
+      role: Role.ADMIN,
+      isActive: true,
+    },
+  });
+  console.log(`  Admin user: ${adminUser.email} [${adminUser.role}]`);
+
+  // Invalidate Redis department/dashboard caches so fresh data is served immediately
+  try {
+    const { cacheService } = await import("../src/plugins/redis");
+    await cacheService.del("cache:admin:departments");
+    await cacheService.del("cache:admin:dashboard");
+    await cacheService.del("cache:departments:list");
+    console.log("  Redis department caches invalidated.");
+  } catch {
+    // Redis optional during standalone migrations
   }
 
   console.log("System seed completed successfully.");

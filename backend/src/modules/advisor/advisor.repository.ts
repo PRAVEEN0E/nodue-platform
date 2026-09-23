@@ -2,7 +2,9 @@ import { prisma } from "../../plugins/database";
 import { Prisma, Role } from "@prisma/client";
 import {
   deriveFinalVerification,
+  batchGetClearanceSummaries,
   type StageDecision,
+  type ClearanceStepSummary,
 } from "../approval-engine/approval-engine.service";
 import {
   CreateStudentInput,
@@ -186,8 +188,23 @@ export const advisorRepository = {
       prisma.student.count({ where }),
     ]);
 
+    const summaries = await batchGetClearanceSummaries(
+      students.map((s) => ({ id: s.id, classroomId: scope.classroomId }))
+    );
+
+    const enriched = students.map((s) => ({
+      ...s,
+      clearance: summaries.get(s.id) ?? {
+        staff: { status: "PENDING" as const, approved: 0, total: 0 },
+        advisor: { status: "PENDING" as const },
+        hod: { status: "PENDING" as const },
+        fee: { satisfied: false },
+        final: { state: "NOT_READY" as const },
+      },
+    }));
+
     return {
-      data: students,
+      data: enriched,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   },
@@ -231,7 +248,9 @@ export const advisorRepository = {
         data: {
           firstName: input.firstName,
           lastName: input.lastName,
-          email: input.email,
+          email:
+            input.email ||
+            `${input.registerNumber.toLowerCase().replace(/[^a-z0-9]/g, "")}@student.institution.edu`,
           passwordHash: input.passwordHash,
           role: Role.STUDENT,
           departmentId: scope.departmentId,

@@ -67,6 +67,16 @@ export const advisorRoutes: FastifyPluginAsync = async (fastify) => {
     advisorController.getStudentById
   );
 
+  fastify.get<{ Params: { id: string } }>(
+    "/students/:id/status",
+    {
+      preHandler: advisorGuard,
+      preValidation: [validateParams(studentIdParamSchema)],
+    },
+    advisorController.getStudentStatus
+  );
+
+
   fastify.post<{ Body: CreateStudentInput }>(
     "/students",
     {

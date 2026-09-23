@@ -6,24 +6,30 @@ import {
   createAdvisorStudent,
   updateAdvisorStudent,
   getAdvisorStudentById,
+  getAdvisorStudentStatus,
   AdvisorStudent,
   AdvisorStudentDetail,
 } from "@/lib/advisor-api";
 import { ApiError } from "@/lib/api";
-import { Plus, Search, RefreshCw, Eye, UploadCloud } from "lucide-react";
+import { Plus, Search, RefreshCw, Eye, UploadCloud, Activity } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { PageHeader, Badge, Button, Input, Select } from "@/components/ui/controls";
 import { Modal } from "@/components/ui/overlays";
 import { TableSkeleton, EmptyState, ErrorState, Pagination, ButtonSpinner } from "@/components/ui/feedback";
 import { BulkImportModal } from "@/components/ui/BulkImportModal";
 import { advisorBulkImportStudents, advisorDownloadStudentTemplate } from "@/lib/bulk-api";
+import { ClearanceTicks } from "@/components/clearance/ClearanceTicks";
+import { ClearanceModal } from "@/components/clearance/ClearanceModal";
 
 const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 export default function AdvisorStudentsPage() {
+  const router = useRouter();
   const [students, setStudents] = useState<AdvisorStudent[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewingStatusStudent, setViewingStatusStudent] = useState<AdvisorStudent | null>(null);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -34,7 +40,6 @@ export default function AdvisorStudentsPage() {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
-    email: "",
     password: "",
     registerNumber: "",
     rollNumber: "",
@@ -77,7 +82,6 @@ export default function AdvisorStudentsPage() {
     const e: Record<string, string> = {};
     if (form.firstName.trim().length < 2) e.firstName = "First name must be at least 2 characters";
     if (form.lastName.trim().length < 2) e.lastName = "Last name must be at least 2 characters";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Enter a valid email address";
     if (!PASSWORD_RE.test(form.password)) e.password = "Min 8 characters with uppercase, lowercase and number";
     if (form.registerNumber.trim().length < 3) e.registerNumber = "Register number must be at least 3 characters";
     if (!Number.isInteger(form.admissionYear) || form.admissionYear < 2000 || form.admissionYear > 2100) {
@@ -96,14 +100,13 @@ export default function AdvisorStudentsPage() {
       await createAdvisorStudent({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        email: form.email.trim().toLowerCase(),
         password: form.password,
         registerNumber: form.registerNumber.trim(),
         rollNumber: form.rollNumber.trim() || null,
         admissionYear: form.admissionYear,
       });
       setShowCreate(false);
-      setForm({ firstName: "", lastName: "", email: "", password: "", registerNumber: "", rollNumber: "", admissionYear: new Date().getFullYear() });
+      setForm({ firstName: "", lastName: "", password: "", registerNumber: "", rollNumber: "", admissionYear: new Date().getFullYear() });
       setCurrentPage(1);
       load();
     } catch (err) {
@@ -113,9 +116,9 @@ export default function AdvisorStudentsPage() {
           if (d.path && d.message) m[d.path] = d.message;
         }
         if (Object.keys(m).length > 0) setFieldErrors(m);
-        else setFieldErrors({ email: err.message });
+        else setFieldErrors({ registerNumber: err.message });
       } else {
-        setFieldErrors({ email: err instanceof ApiError ? err.message : "Failed to create student." });
+        setFieldErrors({ registerNumber: err instanceof ApiError ? err.message : "Failed to create student." });
       }
     } finally {
       setSubmitting(false);
@@ -190,7 +193,7 @@ export default function AdvisorStudentsPage() {
           <Search className="nd-search-icon" style={{ width: 16, height: 16 }} />
           <input
             className="nd-input nd-search-input"
-            placeholder="Search by name, email or register number…"
+            placeholder="Search by name or register number…"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             aria-label="Search students"
@@ -240,7 +243,7 @@ export default function AdvisorStudentsPage() {
                 <tr>
                   <th>Student</th>
                   <th>Register No</th>
-                  <th>Email</th>
+                  <th>Clearance</th>
                   <th>Status</th>
                   <th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
@@ -257,7 +260,12 @@ export default function AdvisorStudentsPage() {
                       </div>
                     </td>
                     <td className="nd-cell-secondary" style={{ fontFamily: "monospace", fontSize: 12.5 }}>{s.registerNumber}</td>
-                    <td className="nd-cell-secondary">{s.user.email}</td>
+                    <td>
+                      <ClearanceTicks
+                        clearance={s.clearance}
+                        onClick={() => setViewingStatusStudent(s)}
+                      />
+                    </td>
                     <td>
                       <Badge tone={s.user.isActive ? "success" : "danger"}>
                         {s.user.isActive ? "Active" : "Inactive"}
@@ -265,6 +273,15 @@ export default function AdvisorStudentsPage() {
                     </td>
                     <td style={{ textAlign: "right" }}>
                       <div style={{ display: "inline-flex", gap: 6 }}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setViewingStatusStudent(s)}
+                          aria-label={`View progress for ${s.user.firstName}`}
+                          title="View clearance progress"
+                        >
+                          <Activity style={{ width: 14, height: 14 }} />
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => openDetail(s.id)} aria-label={`View ${s.user.firstName}`}>
                           <Eye style={{ width: 14, height: 14 }} />
                         </Button>
@@ -304,11 +321,6 @@ export default function AdvisorStudentsPage() {
               <Input label="Last name" required value={form.lastName} error={fieldErrors.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })} autoComplete="family-name" />
             </div>
-            <Input label="Email" type="email" required value={form.email} error={fieldErrors.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })} autoComplete="email" />
-            <Input label="Password" type="password" required minLength={8} value={form.password} error={fieldErrors.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password"
-              hint="Min 8 characters with uppercase, lowercase and number." />
             <div className="nd-form-grid">
               <Input label="Register number" required value={form.registerNumber} error={fieldErrors.registerNumber}
                 onChange={(e) => setForm({ ...form, registerNumber: e.target.value })} autoComplete="off" />
@@ -318,6 +330,9 @@ export default function AdvisorStudentsPage() {
             <Input label="Admission year" type="number" required value={form.admissionYear}
               error={fieldErrors.admissionYear}
               onChange={(e) => setForm({ ...form, admissionYear: Number(e.target.value) })} />
+            <Input label="Password" type="password" required minLength={8} value={form.password} error={fieldErrors.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password"
+              hint="Min 8 characters with uppercase, lowercase and number." />
           </form>
         </Modal>
       )}
@@ -325,7 +340,7 @@ export default function AdvisorStudentsPage() {
       {detail && (
         <Modal
           title={`${detail.user.firstName} ${detail.user.lastName}`}
-          description={`${detail.registerNumber} · ${detail.user.email}`}
+          description={detail.registerNumber}
           onClose={() => setDetail(null)}
           footer={<Button variant="secondary" onClick={() => setDetail(null)}>Close</Button>}
         >
@@ -372,6 +387,18 @@ export default function AdvisorStudentsPage() {
         onUpload={advisorBulkImportStudents}
         onSuccess={() => load()}
       />
+
+      {viewingStatusStudent && (
+        <ClearanceModal
+          isOpen={Boolean(viewingStatusStudent)}
+          onClose={() => setViewingStatusStudent(null)}
+          studentId={viewingStatusStudent.id}
+          studentName={`${viewingStatusStudent.user.firstName} ${viewingStatusStudent.user.lastName}`}
+          registerNumber={viewingStatusStudent.registerNumber}
+          loadStatus={getAdvisorStudentStatus}
+          fullPageUrl={`/advisor/students/${viewingStatusStudent.id}/status`}
+        />
+      )}
     </div>
   );
 }

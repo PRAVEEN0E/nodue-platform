@@ -4,15 +4,18 @@ import React, { useEffect, useState, useCallback } from "react";
 import {
   getAdvisorApprovals,
   decideAdvisorApproval,
+  getAdvisorStudentStatus,
   AdvisorPendingRow,
   AdvisorDecidedRow,
   AdvisorQueueStatus,
 } from "@/lib/advisor-api";
 import { ApiError } from "@/lib/api";
-import { Search, RefreshCw, Check, X } from "lucide-react";
+import { Search, RefreshCw, Check, X, Activity } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { PageHeader, Badge, Button, Input } from "@/components/ui/controls";
 import { Modal } from "@/components/ui/overlays";
 import { TableSkeleton, EmptyState, ErrorState, Pagination, ButtonSpinner } from "@/components/ui/feedback";  import { StatusBadge } from "@/components/ui/status";
+import { ClearanceModal } from "@/components/clearance/ClearanceModal";
 
 type Row = AdvisorPendingRow | AdvisorDecidedRow;
 
@@ -21,10 +24,12 @@ function isDecided(row: Row): row is AdvisorDecidedRow {
 }
 
 export default function AdvisorApprovalsPage() {
+  const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewingStatusStudent, setViewingStatusStudent] = useState<{ id: string; name: string; registerNumber: string } | null>(null);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<AdvisorQueueStatus>("pending");
@@ -200,33 +205,50 @@ export default function AdvisorApprovalsPage() {
 <StatusBadge status={row.status} />
                       </td>
                       <td style={{ textAlign: "right" }}>
-                        {isDecided(row) ? (
-                          <span className="nd-cell-secondary" style={{ fontSize: 12.5 }}>
-                            {new Date(row.updatedAt).toLocaleDateString("en-IN")}
-                          </span>
-                        ) : (
-                          <div style={{ display: "inline-flex", gap: 6 }}>
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => openDecision(row, "APPROVED")}
-                              aria-label={`Approve ${row.student.user.firstName}`}
-                              data-testid="advisor-approval-action"
-                            >
-                              <Check style={{ width: 13, height: 13 }} />
-                              Approve
-                            </Button>
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={() => openDecision(row, "REJECTED")}
-                              aria-label={`Reject ${row.student.user.firstName}`}
-                            >
-                              <X style={{ width: 13, height: 13 }} />
-                              Reject
-                            </Button>
-                          </div>
-                        )}
+                        <div style={{ display: "inline-flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setViewingStatusStudent({
+                                id: row.student.id,
+                                name: `${row.student.user.firstName} ${row.student.user.lastName}`,
+                                registerNumber: row.student.registerNumber,
+                              })
+                            }
+                            aria-label={`View clearance progress for ${row.student.user.firstName}`}
+                            title="View clearance progress"
+                          >
+                            <Activity style={{ width: 14, height: 14 }} />
+                          </Button>
+                          {isDecided(row) ? (
+                            <span className="nd-cell-secondary" style={{ fontSize: 12.5 }}>
+                              {new Date(row.updatedAt).toLocaleDateString("en-IN")}
+                            </span>
+                          ) : (
+                            <>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => openDecision(row, "APPROVED")}
+                                aria-label={`Approve ${row.student.user.firstName}`}
+                                data-testid="advisor-approval-action"
+                              >
+                                <Check style={{ width: 13, height: 13 }} />
+                                Approve
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => openDecision(row, "REJECTED")}
+                                aria-label={`Reject ${row.student.user.firstName}`}
+                              >
+                                <X style={{ width: 13, height: 13 }} />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -286,6 +308,18 @@ export default function AdvisorApprovalsPage() {
             />
           </form>
         </Modal>
+      )}
+
+      {viewingStatusStudent && (
+        <ClearanceModal
+          isOpen={Boolean(viewingStatusStudent)}
+          onClose={() => setViewingStatusStudent(null)}
+          studentId={viewingStatusStudent.id}
+          studentName={viewingStatusStudent.name}
+          registerNumber={viewingStatusStudent.registerNumber}
+          loadStatus={getAdvisorStudentStatus}
+          fullPageUrl={`/advisor/students/${viewingStatusStudent.id}/status`}
+        />
       )}
     </div>
   );

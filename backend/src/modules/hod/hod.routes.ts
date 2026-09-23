@@ -23,6 +23,8 @@ import {
   decideHodApprovalSchema,
   getHodFeesQuerySchema,
   approveFeeVerificationSchema,
+  studentIdParamSchema,
+  getHodStudentsQuerySchema,
   CreateClassroomInput,
   UpdateClassroomInput,
   GetClassroomsQuery,
@@ -36,7 +38,9 @@ import {
   DecideHodApprovalInput,
   GetHodFeesQuery,
   ApproveFeeVerificationInput,
+  GetHodStudentsQuery,
 } from "./hod.schema";
+
 
 // ─── Department Scoping Middleware ────────────────────────────────────────────
 
@@ -242,4 +246,25 @@ export const hodRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: hodGuard },
     hodController.exportClearanceSummary
   );
+
+  // ─── Students (department clearance view) ────────────────────────────────
+
+  fastify.get<{ Querystring: GetHodStudentsQuery }>(
+    "/students",
+    {
+      preHandler: hodGuard,
+      preValidation: [validateQuery(getHodStudentsQuerySchema)],
+    },
+    hodController.getStudents
+  );
+
+  fastify.get<{ Params: { id: string } }>(
+    "/students/:id/status",
+    {
+      preHandler: hodGuard,
+      preValidation: [validateParams(studentIdParamSchema)],
+    },
+    hodController.getStudentStatus
+  );
 };
+

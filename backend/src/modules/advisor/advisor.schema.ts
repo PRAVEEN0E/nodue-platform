@@ -22,7 +22,7 @@ const isActiveFilter = z
 export const createStudentSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters").max(50).trim(),
   lastName: z.string().min(2, "Last name must be at least 2 characters").max(50).trim(),
-  email: z.string().email("Invalid email address").toLowerCase().trim(),
+  email: z.string().email("Invalid email address").toLowerCase().trim().optional(),
   password: passwordSchema,
   registerNumber: z.string().min(3, "Register number must be at least 3 characters").max(30).trim(),
   rollNumber: z.string().max(30).trim().optional().nullable(),
@@ -198,7 +198,7 @@ export type BulkImportSubjectRow = z.infer<typeof bulkImportSubjectRowSchema>;
 export const bulkImportAdvisorStudentRowSchema = z.object({
   firstname: z.string().min(1, "First name is required").trim(),
   lastname: z.string().min(1, "Last name is required").trim(),
-  email: z.string().email("Invalid email address").toLowerCase().trim(),
+  email: z.string().email("Invalid email address").toLowerCase().trim().optional(),
   password: z.string().min(8, "Password must be at least 8 characters"),
   registernumber: z.string().min(3, "Register number must be at least 3 characters").trim(),
   rollnumber: z.string().trim().optional().default(""),

@@ -125,6 +125,19 @@ export const assignAdvisorParamSchema = z.object({
   advisorId: z.string().uuid("Invalid advisor ID format"),
 });
 
+export const studentIdParamSchema = z.object({
+  id: z.string().uuid("Invalid student ID format"),
+});
+
+// ─── HOD Students Query ───────────────────────────────────────────────────────
+
+export const getHodStudentsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  search: z.string().trim().optional(),
+  classroomId: z.string().uuid().optional(),
+});
+
 // ─── Inferred Types ───────────────────────────────────────────────────────────
 
 export type CreateClassroomInput = z.infer<typeof createClassroomSchema>;
@@ -142,3 +155,4 @@ export type GetHodApprovalsQuery = z.infer<typeof getHodApprovalsQuerySchema>;
 export type DecideHodApprovalInput = z.infer<typeof decideHodApprovalSchema>;
 export type GetHodFeesQuery = z.infer<typeof getHodFeesQuerySchema>;
 export type ApproveFeeVerificationInput = z.infer<typeof approveFeeVerificationSchema>;
+export type GetHodStudentsQuery = z.infer<typeof getHodStudentsQuerySchema>;

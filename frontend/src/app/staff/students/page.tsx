@@ -98,7 +98,7 @@ export default function StaffStudentsPage() {
           <Search className="nd-search-icon" style={{ width: 16, height: 16 }} />
           <input
             className="nd-input nd-search-input"
-            placeholder="Search by name, email or register number…"
+            placeholder="Search by name or register number…"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             aria-label="Search students"
@@ -174,10 +174,7 @@ export default function StaffStudentsPage() {
                             <div className="nd-avatar" aria-hidden="true">
                               {s.user.firstName[0]}{s.user.lastName[0]}
                             </div>
-                            <div>
-                              <div className="nd-cell-primary">{s.user.firstName} {s.user.lastName}</div>
-                              <div className="nd-cell-secondary">{s.user.email}</div>
-                            </div>
+                            <span className="nd-cell-primary">{s.user.firstName} {s.user.lastName}</span>
                           </div>
                         </td>
                         <td className="nd-cell-secondary" style={{ fontFamily: "monospace", fontSize: 12.5 }}>

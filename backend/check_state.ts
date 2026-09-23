@@ -3,21 +3,37 @@ import { prisma, connectDatabase, disconnectDatabase } from "./src/plugins/datab
 async function main() {
   await connectDatabase();
   const departments = await prisma.department.findMany({
-    select: { code: true, name: true, hodUserId: true },
+    select: { id: true, code: true, name: true, hodUserId: true },
     orderBy: { code: "asc" },
   });
-  console.log("Current department HOD state:");
+  console.log(`=== DEPARTMENTS (${departments.length}) ===`);
   departments.forEach((d) => {
-    console.log(`  ${d.code}: hodUserId=${d.hodUserId ?? "NULL"}`);
+    console.log(`  [${d.code}] "${d.name}" (HOD: ${d.hodUserId ?? "None"})`);
   });
-  
-  const hodUsers = await prisma.user.findMany({
-    where: { role: "HOD" },
-    select: { id: true, email: true, isActive: true, departmentId: true },
+
+  const users = await prisma.user.findMany({
+    select: { id: true, email: true, role: true, firstName: true, lastName: true, isActive: true, passwordHash: true },
+    orderBy: { email: "asc" },
   });
-  console.log("\nHOD users:");
-  hodUsers.forEach((u) => console.log(`  ${u.email} (dept=${u.departmentId}, active=${u.isActive})`));
-  
+  console.log(`\n=== USERS (${users.length}) ===`);
+  for (const u of users) {
+    const { verifyPassword } = await import("./src/utils/password");
+    const pwdOk = await verifyPassword(u.passwordHash, "Admin@12345");
+    console.log(`  [${u.role}] ${u.email} (${u.firstName} ${u.lastName}, active: ${u.isActive}, Admin@12345 valid: ${pwdOk})`);
+  }
+
+  const counts = {
+    students: await prisma.student.count(),
+    staff: await prisma.staff.count(),
+    advisors: await prisma.advisor.count(),
+    classrooms: await prisma.classroom.count(),
+    subjects: await prisma.subject.count(),
+    fees: await prisma.fee.count(),
+    feeVerifications: await prisma.feeVerification.count(),
+    approvals: await prisma.approval.count(),
+  };
+  console.log("\n=== COUNTS ===", counts);
+
   await disconnectDatabase();
 }
 

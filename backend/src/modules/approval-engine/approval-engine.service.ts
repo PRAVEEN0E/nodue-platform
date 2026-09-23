@@ -48,6 +48,163 @@ export function deriveFinalVerification(input: {
   };
 }
 
+export interface ClearanceStepSummary {
+  staff: {
+    status: "APPROVED" | "PARTIAL" | "REJECTED" | "PENDING" | "NO_SUBJECTS";
+    approved: number;
+    total: number;
+  };
+  advisor: {
+    status: StageDecision;
+  };
+  hod: {
+    status: StageDecision;
+  };
+  fee: {
+    satisfied: boolean;
+  };
+  final: {
+    state: FinalVerificationState;
+  };
+}
+
+export async function batchGetClearanceSummaries(
+  students: Array<{ id: string; classroomId: string }>
+): Promise<Map<string, ClearanceStepSummary>> {
+  const map = new Map<string, ClearanceStepSummary>();
+  if (students.length === 0) return map;
+
+  const studentIds = students.map((s) => s.id);
+  const classroomIds = [...new Set(students.map((s) => s.classroomId).filter(Boolean))];
+
+  const [subjects, staffApprovals, roleApprovals, feeVerifications, verifications] =
+    await Promise.all([
+      prisma.subject.findMany({
+        where: { classroomId: { in: classroomIds } },
+        select: { id: true, classroomId: true },
+      }),
+      prisma.approval.findMany({
+        where: {
+          studentId: { in: studentIds },
+          approverRole: Role.STAFF,
+          subjectId: { not: null },
+        },
+        select: { studentId: true, subjectId: true, status: true },
+      }),
+      prisma.approval.findMany({
+        where: {
+          studentId: { in: studentIds },
+          subjectId: null,
+          approverRole: { in: [Role.ADVISOR, Role.HOD] },
+        },
+        select: { studentId: true, approverRole: true, status: true },
+      }),
+      prisma.feeVerification.findMany({
+        where: { studentId: { in: studentIds } },
+        select: { studentId: true, advisorApproved: true, hodApproved: true },
+      }),
+      prisma.student.findMany({
+        where: { id: { in: studentIds } },
+        select: { id: true, isVerified: true },
+      }),
+    ]);
+
+  const classroomSubjectIds = new Map<string, string[]>();
+  for (const s of subjects) {
+    if (!s.classroomId) continue;
+    const list = classroomSubjectIds.get(s.classroomId) ?? [];
+    list.push(s.id);
+    classroomSubjectIds.set(s.classroomId, list);
+  }
+
+  const staffByStudent = new Map<string, Map<string, ApprovalStatus>>();
+  for (const a of staffApprovals) {
+    if (!a.subjectId) continue;
+    let studentMap = staffByStudent.get(a.studentId);
+    if (!studentMap) {
+      studentMap = new Map();
+      staffByStudent.set(a.studentId, studentMap);
+    }
+    studentMap.set(a.subjectId, a.status);
+  }
+
+  const roleByStudent = new Map<string, Map<Role, ApprovalStatus>>();
+  for (const a of roleApprovals) {
+    let studentMap = roleByStudent.get(a.studentId);
+    if (!studentMap) {
+      studentMap = new Map();
+      roleByStudent.set(a.studentId, studentMap);
+    }
+    studentMap.set(a.approverRole, a.status);
+  }
+
+  const feeByStudent = new Map<string, { advisorApproved: boolean; hodApproved: boolean }>();
+  for (const f of feeVerifications) {
+    feeByStudent.set(f.studentId, {
+      advisorApproved: f.advisorApproved,
+      hodApproved: f.hodApproved,
+    });
+  }
+
+  const isVerifiedByStudent = new Map<string, boolean>();
+  for (const v of verifications) {
+    isVerifiedByStudent.set(v.id, v.isVerified);
+  }
+
+  for (const s of students) {
+    const subIds = classroomSubjectIds.get(s.classroomId) ?? [];
+    const staffMap = staffByStudent.get(s.id);
+    let approved = 0;
+    let rejected = 0;
+    for (const subId of subIds) {
+      const decision = staffMap?.get(subId);
+      if (decision === "APPROVED") approved++;
+      else if (decision === "REJECTED") rejected++;
+    }
+
+    const total = subIds.length;
+    const staffStatus =
+      total === 0
+        ? "NO_SUBJECTS"
+        : approved === total
+        ? "APPROVED"
+        : rejected > 0
+        ? "REJECTED"
+        : approved > 0
+        ? "PARTIAL"
+        : "PENDING";
+
+    const roleMap = roleByStudent.get(s.id);
+    const advisorStatus = (roleMap?.get(Role.ADVISOR) as StageDecision) ?? "PENDING";
+    const hodStatus = (roleMap?.get(Role.HOD) as StageDecision) ?? "PENDING";
+
+    const feeObj = feeByStudent.get(s.id);
+    const feeSatisfied = Boolean(feeObj?.advisorApproved || feeObj?.hodApproved);
+
+    const isVerified = isVerifiedByStudent.get(s.id) ?? false;
+    const fv = deriveFinalVerification({
+      subjectsTotal: total,
+      subjectsApproved: approved,
+      subjectsRejected: rejected,
+      advisorDecision: advisorStatus,
+      hodDecision: hodStatus,
+      feeByAdvisor: Boolean(feeObj?.advisorApproved),
+      feeByHod: Boolean(feeObj?.hodApproved),
+      isVerified,
+    });
+
+    map.set(s.id, {
+      staff: { status: staffStatus, approved, total },
+      advisor: { status: advisorStatus },
+      hod: { status: hodStatus },
+      fee: { satisfied: feeSatisfied },
+      final: { state: fv.state },
+    });
+  }
+
+  return map;
+}
+
 export interface VerificationState {
   studentId: string;
   subjects: {

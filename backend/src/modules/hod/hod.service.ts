@@ -17,10 +17,12 @@ import {
   DecideHodApprovalInput,
   GetHodFeesQuery,
   ApproveFeeVerificationInput,
+  GetHodStudentsQuery,
 } from "./hod.schema";
 import { approvalEngine, deriveFinalVerification, StageDecision } from "../approval-engine/approval-engine.service";
 import { Role } from "@prisma/client";
 import { toCsvString } from "../../utils/csvParser";
+import { studentRepository } from "../student/student.repository";
 
 export const hodService = {
   // ─── Dashboard & Department ─────────────────────────────────────────────────
@@ -662,5 +664,25 @@ export const hodService = {
     }
 
     return toCsvString(headers, rows);
+  },
+
+  // ─── Students (department clearance view) ────────────────────────────────
+
+  async getStudents(departmentId: string, query: GetHodStudentsQuery) {
+    return hodRepository.getStudents(departmentId, query);
+  },
+
+  async getStudentStatus(departmentId: string, studentId: string) {
+    const student = await hodRepository.findStudentInDepartment(studentId, departmentId);
+    if (!student) {
+      throw new NotFoundError("Student not found in this department.");
+    }
+    // Reuse the student repository's snapshot logic.
+    return studentRepository.getStatusSnapshot({
+      studentId,
+      userId: student.user.id,
+      classroomId: student.classroomId,
+      departmentId: student.departmentId,
+    });
   },
 };

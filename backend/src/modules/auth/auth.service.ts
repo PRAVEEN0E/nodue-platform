@@ -49,7 +49,18 @@ export class AuthService {
     };
     rawRefreshToken: string;
   }> {
-    const normalizedEmail = input.email.toLowerCase().trim();
+    const identifier = input.email.toLowerCase().trim();
+
+    // Support login via either email or student register number
+    let normalizedEmail = identifier;
+    const studentMatch = await prisma.student.findFirst({
+      where: { registerNumber: { equals: identifier, mode: "insensitive" } },
+      include: { user: true },
+    });
+    if (studentMatch) {
+      normalizedEmail = studentMatch.user.email.toLowerCase();
+    }
+
     const lockoutKey = `auth:lockout:${normalizedEmail}`;
     const failedAttemptsKey = `auth:failed:${normalizedEmail}`;
 

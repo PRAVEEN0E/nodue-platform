@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/controls";
 import { ButtonSpinner } from "@/components/ui/feedback";
 
 const loginFormSchema = z.object({
-  email: z.string().email("Please enter a valid email address").toLowerCase(),
+  email: z.string().min(2, "Please enter your email or register number").toLowerCase(),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -61,19 +61,14 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <h1 style={{ fontSize: 22, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em" }}>
-          Welcome back
-        </h1>
-        <p style={{ fontSize: 13, color: "#2563eb", fontWeight: 600, letterSpacing: "0.01em", marginTop: 4, marginBottom: 2 }}>
-          One Portal. Zero Pending.
-        </p>
-        <p style={{ fontSize: 14, color: "#64748b", marginBottom: 22 }}>
-          Sign in to continue to your workspace.
-        </p>
+        <div className="nd-login-header">
+          <h1 className="nd-login-title">Sign in to your account</h1>
+          <p className="nd-login-desc">Enter your credentials to access the clearance portal</p>
+        </div>
 
         {serverError && (
           <div className="nd-alert nd-alert-error" role="alert">
-            <AlertCircle style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1 }} />
+            <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} />
             <span>{serverError}</span>
           </div>
         )}
@@ -81,7 +76,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit(onSubmit)} style={{ display: "flex", flexDirection: "column", gap: 14 }} noValidate>
           <div>
             <label className="nd-label" htmlFor="login-email">
-              Email
+              Email or Register Number
             </label>
             <div style={{ position: "relative" }}>
               <Mail
@@ -97,10 +92,10 @@ export default function LoginPage() {
               />
               <input
                 id="login-email"
-                type="email"
+                type="text"
                 {...register("email")}
-                placeholder="name@institution.edu"
-                autoComplete="email"
+                placeholder="Email or Register Number"
+                autoComplete="username"
                 className={`nd-input${errors.email ? " nd-input--error" : ""}`}
                 style={{ paddingLeft: 36 }}
               />

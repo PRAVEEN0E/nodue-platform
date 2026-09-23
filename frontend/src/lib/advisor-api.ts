@@ -41,6 +41,26 @@ export async function getAdvisorDashboard(): Promise<AdvisorDashboardData> {
 
 // ─── Students ───────────────────────────────────────────────────────────────
 
+export interface ClearanceStepSummary {
+  staff: {
+    status: "APPROVED" | "PARTIAL" | "REJECTED" | "PENDING" | "NO_SUBJECTS";
+    approved: number;
+    total: number;
+  };
+  advisor: {
+    status: "PENDING" | "APPROVED" | "REJECTED";
+  };
+  hod: {
+    status: "PENDING" | "APPROVED" | "REJECTED";
+  };
+  fee: {
+    satisfied: boolean;
+  };
+  final: {
+    state: "NOT_READY" | "READY" | "COMPLETE";
+  };
+}
+
 export interface AdvisorStudent {
   id: string;
   registerNumber: string;
@@ -55,6 +75,7 @@ export interface AdvisorStudent {
     role: string;
     isActive: boolean;
   };
+  clearance?: ClearanceStepSummary;
 }
 
 export interface AdvisorStudentDetail extends AdvisorStudent {
@@ -86,7 +107,7 @@ export async function getAdvisorStudents(
 export interface CreateAdvisorStudentPayload {
   firstName: string;
   lastName: string;
-  email: string;
+  email?: string;
   password: string;
   registerNumber: string;
   rollNumber?: string | null;
@@ -436,3 +457,15 @@ export async function getFinalVerifications(
   );
   return { data: res.data, meta: res.meta };
 }
+
+// ─── Student Clearance Status (advisor view) ─────────────────────────────────
+
+import type { StudentStatusSnapshot } from "./student-api";
+
+export async function getAdvisorStudentStatus(studentId: string): Promise<StudentStatusSnapshot> {
+  const res = await apiClient<{ success: boolean; data: StudentStatusSnapshot }>(
+    `/advisor/students/${studentId}/status`
+  );
+  return res.data;
+}
+

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { Role } from "@prisma/client";
 
 export const loginSchema = z.object({
-  email: z.string().email("Invalid email address format").toLowerCase().trim(),
+  email: z.string().min(2, "Identifier must be at least 2 characters").toLowerCase().trim(),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 

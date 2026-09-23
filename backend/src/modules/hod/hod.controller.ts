@@ -14,6 +14,7 @@ import {
   DecideHodApprovalInput,
   GetHodFeesQuery,
   ApproveFeeVerificationInput,
+  GetHodStudentsQuery,
 } from "./hod.schema";
 
 export const hodController = {
@@ -242,4 +243,23 @@ export const hodController = {
     reply.header("Content-Disposition", 'attachment; filename="department-clearance-summary.csv"');
     return reply.send(csv);
   },
+
+  // ─── Students (department clearance view) ────────────────────────────────
+
+  async getStudents(
+    request: FastifyRequest<{ Querystring: GetHodStudentsQuery }>,
+    reply: FastifyReply
+  ) {
+    const result = await hodService.getStudents(request.departmentId!, request.query);
+    return reply.status(200).send({ success: true, data: result.data, meta: result.meta });
+  },
+
+  async getStudentStatus(
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply
+  ) {
+    const data = await hodService.getStudentStatus(request.departmentId!, request.params.id);
+    return reply.status(200).send({ success: true, data });
+  },
 };
+

@@ -526,6 +526,11 @@ export const advisorService = {
           registerNumber: s.registerNumber,
           classroom: { id: s.classroom.id, name: s.classroom.name },
           user: s.user,
+          feeVerification: {
+            verified: Boolean(s.feeVerification?.advisorApproved || s.feeVerification?.hodApproved),
+            advisorApproved: s.feeVerification?.advisorApproved ?? false,
+            hodApproved: s.feeVerification?.hodApproved ?? false,
+          },
         },
         subjects: s.classroom.subjects.map((sub) => ({ id: sub.id, code: sub.code, name: sub.name })),
         status: "PENDING" as const,

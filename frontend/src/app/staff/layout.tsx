@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   School,
   BookOpen,
-  GraduationCap,
   ClipboardCheck,
 } from "lucide-react";
 
@@ -20,8 +19,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
         { href: "/staff", label: "Dashboard", icon: LayoutDashboard, exact: true },
         { href: "/staff/classes", label: "My Classes", icon: School },
         { href: "/staff/subjects", label: "Assigned Subjects", icon: BookOpen },
-        { href: "/staff/students", label: "Students", icon: GraduationCap },
-        { href: "/staff/approvals", label: "Approvals", icon: ClipboardCheck },
+        { href: "/staff/approvals", label: "Student Approvals", icon: ClipboardCheck },
       ]}
     >
       {children}

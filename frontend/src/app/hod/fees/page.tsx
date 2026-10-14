@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState, useCallback } from "react";
 import {
@@ -72,7 +72,7 @@ export default function HodFeeVerificationPage() {
     setError(null);
     try {
       await approveStudentFeeVerification(row.studentId);
-      setNotice(`${row.studentName} fee verification approved. No advisor approval needed.`);
+      setNotice(`${row.studentName} fee verified successfully.`);
       setTimeout(() => setNotice(null), 5000);
       loadStudents();
     } catch (err) {
@@ -91,7 +91,7 @@ export default function HodFeeVerificationPage() {
         title="Fee Verification"
         description={
           selected
-            ? `Students in ${selected.name}. Your approval alone verifies the fee.`
+            ? `Students in ${selected.name}. Your approval alone verifies the fee — no advisor needed.`
             : "Select a classroom to verify student fees."
         }
         actions={
@@ -168,7 +168,7 @@ export default function HodFeeVerificationPage() {
               <Search className="nd-search-icon" style={{ width: 16, height: 16 }} />
               <input
                 className="nd-input nd-search-input"
-                placeholder="Search students in this classroom…"
+                placeholder="Search students in this classroom..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 aria-label="Search students"
@@ -244,11 +244,11 @@ export default function HodFeeVerificationPage() {
                                 aria-label={`Approve fee verification for ${r.studentName}`}
                               >
                                 {busy && <ButtonSpinner />}
-                                {busy ? "Approving…" : "Approve"}
+                                {busy ? "Approving..." : "Approve"}
                               </Button>
                             )}
                             {r.verified && (
-                              <span className="nd-cell-secondary" style={{ fontSize: 12.5 }}>✓ Verified</span>
+                              <span className="nd-cell-secondary" style={{ fontSize: 12.5 }}>Verified</span>
                             )}
                           </td>
                         </tr>

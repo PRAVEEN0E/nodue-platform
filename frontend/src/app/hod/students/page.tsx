@@ -2,9 +2,16 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { getHodStudents, getHodStudentStatus, updateHodStudent, HodStudent } from "@/lib/hod-api";
+import {
+  getHodStudents,
+  getHodStudentStatus,
+  getHodClassrooms,
+  updateHodStudent,
+  HodStudent,
+  Classroom,
+} from "@/lib/hod-api";
 import { ApiError } from "@/lib/api";
-import { Search, RefreshCw, Activity, Edit2 } from "lucide-react";
+import { Search, RefreshCw, Activity, Edit2, GraduationCap, ArrowLeft, Users } from "lucide-react";
 import { PageHeader, Badge, Button, Input, Select } from "@/components/ui/controls";
 import { Modal } from "@/components/ui/overlays";
 import { TableSkeleton, EmptyState, ErrorState, Pagination, ButtonSpinner } from "@/components/ui/feedback";
@@ -13,9 +20,13 @@ import { ClearanceModal } from "@/components/clearance/ClearanceModal";
 
 export default function HodStudentsPage() {
   const router = useRouter();
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [selectedClassroom, setSelectedClassroom] = useState<Classroom | null>(null);
+  const [classroomsLoading, setClassroomsLoading] = useState(true);
+
   const [students, setStudents] = useState<HodStudent[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 20, totalPages: 1 });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewingStatusStudent, setViewingStatusStudent] = useState<HodStudent | null>(null);
   const [search, setSearch] = useState("");
@@ -34,11 +45,36 @@ export default function HodStudentsPage() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const loadClassrooms = useCallback(async () => {
+    setClassroomsLoading(true);
+    setError(null);
+    try {
+      const res = await getHodClassrooms({ page: 1, limit: 100 });
+      setClassrooms(res.data);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load classrooms.");
+    } finally {
+      setClassroomsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedClassroom) {
+      loadClassrooms();
+    }
+  }, [selectedClassroom, loadClassrooms]);
+
+  const loadStudents = useCallback(async () => {
+    if (!selectedClassroom) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await getHodStudents({ page: currentPage, limit: 20, search: search.trim() || undefined });
+      const res = await getHodStudents({
+        page: currentPage,
+        limit: 20,
+        search: search.trim() || undefined,
+        classroomId: selectedClassroom.id,
+      });
       setStudents(res.data);
       setMeta(res.meta);
     } catch (err) {
@@ -46,12 +82,13 @@ export default function HodStudentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, search]);
+  }, [currentPage, search, selectedClassroom]);
 
   useEffect(() => {
-    const t = setTimeout(load, search ? 300 : 0);
+    if (!selectedClassroom) return;
+    const t = setTimeout(loadStudents, search ? 300 : 0);
     return () => clearTimeout(t);
-  }, [load, search]);
+  }, [loadStudents, search, selectedClassroom]);
 
   const openEdit = (s: HodStudent) => {
     setEditingStudent(s);
@@ -83,7 +120,7 @@ export default function HodStudentsPage() {
         isActive: editForm.isActive,
       });
       setEditingStudent(null);
-      load();
+      loadStudents();
     } catch (err) {
       setEditError(err instanceof ApiError ? err.message : "Failed to update student details.");
     } finally {
@@ -94,49 +131,135 @@ export default function HodStudentsPage() {
   return (
     <div>
       <PageHeader
-        breadcrumb="HOD / Students"
-        title="Department Students"
-        description="All students in your department. Edit details or view clearance progress pipeline."
+        breadcrumb={selectedClassroom ? `HOD / Students / ${selectedClassroom.name}` : "HOD / Students"}
+        title={selectedClassroom ? `${selectedClassroom.name} Students` : "Department Classrooms"}
+        description={
+          selectedClassroom
+            ? `Students enrolled in ${selectedClassroom.name} (Semester ${selectedClassroom.semester}). View clearance progress pipeline.`
+            : "Select a classroom to view and manage enrolled students."
+        }
         actions={
-          <Button variant="secondary" onClick={load} aria-label="Refresh">
-            <RefreshCw style={{ width: 14, height: 14 }} />
-            Refresh
-          </Button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {selectedClassroom && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setSelectedClassroom(null);
+                  setSearch("");
+                  setCurrentPage(1);
+                }}
+              >
+                <ArrowLeft style={{ width: 14, height: 14 }} />
+                All Classrooms
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              onClick={() => (selectedClassroom ? loadStudents() : loadClassrooms())}
+              aria-label="Refresh"
+            >
+              <RefreshCw style={{ width: 14, height: 14 }} />
+              Refresh
+            </Button>
+          </div>
         }
       />
 
-      <div className="nd-filter-bar" role="search">
-        <div className="nd-search-wrap">
-          <Search className="nd-search-icon" style={{ width: 16, height: 16 }} />
-          <input
-            className="nd-input nd-search-input"
-            placeholder="Search by name or register number..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-            aria-label="Search students"
-          />
-        </div>
-        <Button variant="secondary" onClick={load} aria-label="Refresh list">
-          <RefreshCw style={{ width: 14, height: 14 }} />
-        </Button>
-      </div>
-
-      {error && !loading && (
+      {error && !loading && !classroomsLoading && (
         <div className="nd-card" style={{ marginBottom: 16 }}>
-          <ErrorState message={error} onRetry={load} />
+          <ErrorState
+            message={error}
+            onRetry={() => (selectedClassroom ? loadStudents() : loadClassrooms())}
+          />
         </div>
       )}
 
-      {loading ? (
-        <TableSkeleton rows={8} cols={5} />
-      ) : students.length === 0 ? (
-        <div className="nd-table-card">
-          <EmptyState
-            title="No students found"
-            description="There are no students in your department matching the current filters."
-          />
-        </div>
+      {!selectedClassroom ? (
+        classroomsLoading ? (
+          <TableSkeleton rows={4} cols={3} />
+        ) : classrooms.length === 0 ? (
+          <div className="nd-table-card">
+            <EmptyState
+              title="No classrooms found"
+              description="There are no classrooms created in your department yet."
+            />
+          </div>
+        ) : (
+          <div className="nd-stat-grid nd-stat-grid--3">
+            {classrooms.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  setSelectedClassroom(c);
+                  setSearch("");
+                  setCurrentPage(1);
+                }}
+                className="nd-card"
+                style={{
+                  textAlign: "left",
+                  cursor: "pointer",
+                  padding: 20,
+                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                }}
+                aria-label={`Open students list for ${c.name}`}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <span className="nd-stat-icon">
+                    <GraduationCap style={{ width: 20, height: 20 }} />
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <div className="nd-card-title" style={{ fontSize: 16, fontWeight: 700 }}>
+                      {c.name}
+                    </div>
+                    <div className="nd-card-desc" style={{ marginTop: 2, fontSize: 13, color: "#64748b" }}>
+                      Semester {c.semester} &middot; Batch {c.batch}
+                    </div>
+                  </div>
+                  <Badge tone="neutral">
+                    <Users style={{ width: 12, height: 12, marginRight: 4, display: "inline" }} />
+                    {c._count?.students ?? 0}
+                  </Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+        )
       ) : (
+        <>
+          <div className="nd-filter-bar" role="search">
+            <div className="nd-search-wrap">
+              <Search className="nd-search-icon" style={{ width: 16, height: 16 }} />
+              <input
+                className="nd-input nd-search-input"
+                placeholder={`Search students in ${selectedClassroom.name}...`}
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
+                aria-label="Search students"
+              />
+            </div>
+            <Button variant="secondary" onClick={loadStudents} aria-label="Refresh list">
+              <RefreshCw style={{ width: 14, height: 14 }} />
+            </Button>
+          </div>
+
+          {loading ? (
+            <TableSkeleton rows={8} cols={5} />
+          ) : students.length === 0 ? (
+            <div className="nd-table-card">
+              <EmptyState
+                title="No students found"
+                description={
+                  search
+                    ? `No students in ${selectedClassroom.name} match "${search}".`
+                    : `There are no students enrolled in ${selectedClassroom.name} yet.`
+                }
+              />
+            </div>
+          ) : (
         <div className="nd-table-card">
           <div className="nd-table-scroll">
             <table className="nd-table">
@@ -205,6 +328,8 @@ export default function HodStudentsPage() {
           <Pagination page={meta.page} totalPages={meta.totalPages} total={meta.total} unit="students" onChange={setCurrentPage} />
         </div>
       )}
+    </>
+  )}
 
       {editingStudent && (
         <Modal

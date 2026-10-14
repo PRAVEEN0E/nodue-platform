@@ -432,7 +432,23 @@ export const hodService = {
   // ─── Approvals & Fees Foundations (Phase 7) ─────────────────────────────────
 
   async getApprovalsSummary(departmentId: string) {
-    return hodRepository.getPendingApprovalsSummary(departmentId);
+    const candidates = await hodRepository.getApprovalQueueCandidates(departmentId);
+    const pendingCount = candidates.filter((s) => {
+      const subjects = s.classroom.subjects;
+      if (subjects.length === 0) return false;
+      const allApproved = subjects.every((sub) =>
+        sub.approvals.some((a) => a.studentId === s.id && a.status === "APPROVED")
+      );
+      if (!allApproved) return false;
+      const advisor = s.approvals.find((a) => a.approverRole === Role.ADVISOR);
+      if (!advisor || advisor.status !== "APPROVED") return false;
+      return !s.approvals.some((a) => a.approverRole === Role.HOD);
+    }).length;
+
+    return {
+      pendingApprovals: pendingCount,
+      departmentId,
+    };
   },
 
   async getFeesSummary(departmentId: string) {
@@ -472,9 +488,14 @@ export const hodService = {
           registerNumber: s.registerNumber,
           classroom: { id: s.classroom.id, name: s.classroom.name },
           user: s.user,
+          feeVerification: {
+            verified: Boolean(s.feeVerification?.advisorApproved || s.feeVerification?.hodApproved),
+            advisorApproved: s.feeVerification?.advisorApproved ?? false,
+            hodApproved: s.feeVerification?.hodApproved ?? false,
+          },
         },
         subjects: s.classroom.subjects.map((sub) => ({ id: sub.id, code: sub.code, name: sub.name })),
-        advisorDecision: s.approvals.find((a) => a.approverRole === Role.ADVISOR)?.status ?? "APPROVED",
+        advisorDecision: (s.approvals.find((a) => a.approverRole === Role.ADVISOR)?.status ?? "PENDING") as "APPROVED" | "PENDING" | "REJECTED",
         status: "PENDING" as const,
       })),
       meta: {

@@ -378,6 +378,11 @@ export interface AdvisorQueueStudent {
   registerNumber: string;
   classroom: { id: string; name: string };
   user: { id: string; firstName: string; lastName: string; email: string; isActive: boolean };
+  feeVerification?: {
+    verified: boolean;
+    advisorApproved: boolean;
+    hodApproved: boolean;
+  };
 }
 
 export interface AdvisorPendingRow {

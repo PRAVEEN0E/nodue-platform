@@ -8,15 +8,18 @@ import { PageHeader, Badge, Button, Input } from "@/components/ui/controls";
 import { Modal } from "@/components/ui/overlays";
 import { TableSkeleton, EmptyState, ErrorState, Pagination, ButtonSpinner } from "@/components/ui/feedback";  import { StatusBadge } from "@/components/ui/status";
 
+import { ApprovalFilterBar, TabCountMap } from "@/components/approvals/ApprovalFilterBar";
+
 type Row = PendingPair | DecidedApproval;
 
 function isDecided(row: Row): row is DecidedApproval {
   return row.status !== "PENDING";
 }
 
-export default function AdvisorApprovalsPage() {
+export default function StaffApprovalsPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 20, totalPages: 1 });
+  const [counts, setCounts] = useState<TabCountMap>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,24 +34,46 @@ export default function AdvisorApprovalsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const fetchTabCounts = useCallback(async (searchQuery: string) => {
+    try {
+      const q = searchQuery || undefined;
+      const [p, a, r, d] = await Promise.all([
+        getStaffApprovals({ status: "pending", limit: 1, search: q }),
+        getStaffApprovals({ status: "approved", limit: 1, search: q }),
+        getStaffApprovals({ status: "rejected", limit: 1, search: q }),
+        getStaffApprovals({ status: "decided", limit: 1, search: q }),
+      ]);
+      setCounts({
+        pending: p.meta.total,
+        approved: a.meta.total,
+        rejected: r.meta.total,
+        decided: d.meta.total,
+      });
+    } catch {
+      // Ignore count fetch errors
+    }
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      const searchQuery = search.trim();
       const res = await getStaffApprovals({
         page: currentPage,
         limit: 20,
-        search: search.trim() || undefined,
+        search: searchQuery || undefined,
         status: statusFilter,
       });
       setRows(res.data);
       setMeta(res.meta);
+      fetchTabCounts(searchQuery);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load approvals.");
     } finally {
       setLoading(false);
     }
-  }, [currentPage, search, statusFilter]);
+  }, [currentPage, search, statusFilter, fetchTabCounts]);
 
   useEffect(() => {
     const t = setTimeout(load, search ? 300 : 0);
@@ -94,8 +119,8 @@ export default function AdvisorApprovalsPage() {
     <div>
       <PageHeader
         breadcrumb="Staff / Approvals"
-        title="Staff Approvals"
-        description="Students with all subjects staff-approved become available for your review."
+        title="Student Approvals"
+        description="Review and decide subject clearances for your assigned students."
         actions={
           <Button variant="secondary" onClick={load}>
             <RefreshCw style={{ width: 14, height: 14 }} />
@@ -111,29 +136,19 @@ export default function AdvisorApprovalsPage() {
         </div>
       )}
 
-      <div className="nd-filter-bar" role="search">
-        <div className="nd-search-wrap">
-          <Search className="nd-search-icon" style={{ width: 16, height: 16 }} />
-          <input
-            className="nd-input nd-search-input"
-            placeholder="Search by student name or register number..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-            aria-label="Search approvals"
-          />
-        </div>
-        <select
-          className="nd-select" style={{ width: "auto", minWidth: 150 }}
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value as "pending" | "approved" | "rejected" | "decided"); setCurrentPage(1); }}
-          aria-label="Filter by decision status"
-        >
-          <option value="pending">Pending review</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="decided">All decided</option>
-        </select>
-      </div>
+      <ApprovalFilterBar
+        search={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setCurrentPage(1);
+        }}
+        statusFilter={statusFilter}
+        onStatusChange={(val) => {
+          setStatusFilter(val as "pending" | "approved" | "rejected" | "decided");
+          setCurrentPage(1);
+        }}
+        counts={counts}
+      />
 
       {error && !loading && (
         <div className="nd-card" style={{ marginBottom: 16 }}>
@@ -161,14 +176,15 @@ export default function AdvisorApprovalsPage() {
               <thead>
                 <tr>
                   <th>Student</th>
-                  <th>Subjects</th>
+                  <th>Classroom</th>
+                  <th>Subject</th>
                   <th>Status</th>
                   <th style={{ textAlign: "right" }}>Decision</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const key = isDecided(row) ? row.id : row.student.id;
+                  const key = isDecided(row) ? row.id : `${row.student.id}-${row.subject.id}`;
                   return (
                     <tr key={key}>
                       <td>
@@ -187,12 +203,20 @@ export default function AdvisorApprovalsPage() {
                         </div>
                       </td>
                       <td className="nd-cell-secondary">
-                        {!isDecided(row)
-                          ? row.subject.code
-                          : "—"}
+                        {row.student.classroom.name}
                       </td>
                       <td>
-<StatusBadge status={row.status} />
+                        <span style={{ fontWeight: 600, color: "#0f172a" }}>
+                          {row.subject ? row.subject.code : "—"}
+                        </span>
+                        {row.subject && (
+                          <div className="nd-cell-secondary" style={{ fontSize: 12 }}>
+                            {row.subject.name}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <StatusBadge status={row.status} />
                       </td>
                       <td style={{ textAlign: "right" }}>
                         {isDecided(row) ? (

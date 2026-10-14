@@ -5,17 +5,20 @@ import {
   getAdvisorApprovals,
   decideAdvisorApproval,
   getAdvisorStudentStatus,
+  approveStudentFeeVerification,
   AdvisorPendingRow,
   AdvisorDecidedRow,
   AdvisorQueueStatus,
 } from "@/lib/advisor-api";
 import { ApiError } from "@/lib/api";
-import { Search, RefreshCw, Check, X, Activity } from "lucide-react";
+import { Search, RefreshCw, Check, X, Activity, CreditCard } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PageHeader, Badge, Button, Input } from "@/components/ui/controls";
 import { Modal } from "@/components/ui/overlays";
 import { TableSkeleton, EmptyState, ErrorState, Pagination, ButtonSpinner } from "@/components/ui/feedback";  import { StatusBadge } from "@/components/ui/status";
 import { ClearanceModal } from "@/components/clearance/ClearanceModal";
+
+import { ApprovalFilterBar, TabCountMap } from "@/components/approvals/ApprovalFilterBar";
 
 type Row = AdvisorPendingRow | AdvisorDecidedRow;
 
@@ -27,6 +30,7 @@ export default function AdvisorApprovalsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 20, totalPages: 1 });
+  const [counts, setCounts] = useState<TabCountMap>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewingStatusStudent, setViewingStatusStudent] = useState<{ id: string; name: string; registerNumber: string } | null>(null);
@@ -41,25 +45,48 @@ export default function AdvisorApprovalsPage() {
   const [remarksError, setRemarksError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [feeVerifying, setFeeVerifying] = useState<string | null>(null);
+
+  const fetchTabCounts = useCallback(async (searchQuery: string) => {
+    try {
+      const q = searchQuery || undefined;
+      const [p, a, r, d] = await Promise.all([
+        getAdvisorApprovals({ status: "pending", limit: 1, search: q }),
+        getAdvisorApprovals({ status: "approved", limit: 1, search: q }),
+        getAdvisorApprovals({ status: "rejected", limit: 1, search: q }),
+        getAdvisorApprovals({ status: "decided", limit: 1, search: q }),
+      ]);
+      setCounts({
+        pending: p.meta.total,
+        approved: a.meta.total,
+        rejected: r.meta.total,
+        decided: d.meta.total,
+      });
+    } catch {
+      // Ignore count fetch errors
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      const searchQuery = search.trim();
       const res = await getAdvisorApprovals({
         page: currentPage,
         limit: 20,
-        search: search.trim() || undefined,
+        search: searchQuery || undefined,
         status: statusFilter,
       });
       setRows(res.data);
       setMeta(res.meta);
+      fetchTabCounts(searchQuery);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load approvals.");
     } finally {
       setLoading(false);
     }
-  }, [currentPage, search, statusFilter]);
+  }, [currentPage, search, statusFilter, fetchTabCounts]);
 
   useEffect(() => {
     const t = setTimeout(load, search ? 300 : 0);
@@ -71,6 +98,21 @@ export default function AdvisorApprovalsPage() {
     setDecision(d);
     setRemarks("");
     setRemarksError(null);
+  };
+
+  const handleVerifyFee = async (studentId: string, studentName: string) => {
+    setFeeVerifying(studentId);
+    setError(null);
+    try {
+      await approveStudentFeeVerification(studentId);
+      setNotice(`${studentName}'s fee approved successfully.`);
+      setTimeout(() => setNotice(null), 5000);
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to approve fee.");
+    } finally {
+      setFeeVerifying(null);
+    }
   };
 
   const handleDecide = async (ev: React.FormEvent) => {
@@ -121,29 +163,19 @@ export default function AdvisorApprovalsPage() {
         </div>
       )}
 
-      <div className="nd-filter-bar" role="search">
-        <div className="nd-search-wrap">
-          <Search className="nd-search-icon" style={{ width: 16, height: 16 }} />
-          <input
-            className="nd-input nd-search-input"
-            placeholder="Search by student name or register number..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-            aria-label="Search approvals"
-          />
-        </div>
-        <select
-          className="nd-select" style={{ width: "auto", minWidth: 150 }}
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value as AdvisorQueueStatus); setCurrentPage(1); }}
-          aria-label="Filter by decision status"
-        >
-          <option value="pending">Pending review</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="decided">All decided</option>
-        </select>
-      </div>
+      <ApprovalFilterBar
+        search={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setCurrentPage(1);
+        }}
+        statusFilter={statusFilter}
+        onStatusChange={(val) => {
+          setStatusFilter(val as AdvisorQueueStatus);
+          setCurrentPage(1);
+        }}
+        counts={counts}
+      />
 
       {error && !loading && (
         <div className="nd-card" style={{ marginBottom: 16 }}>
@@ -172,13 +204,19 @@ export default function AdvisorApprovalsPage() {
                 <tr>
                   <th>Student</th>
                   <th>Subjects</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: "right" }}>Decision</th>
+                  <th>Fee Status</th>
+                  <th>Advisor Status</th>
+                  <th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => {
                   const key = isDecided(row) ? row.id : row.student.id;
+                  const feeVerified = Boolean(
+                    row.student.feeVerification?.verified ||
+                    row.student.feeVerification?.advisorApproved ||
+                    row.student.feeVerification?.hodApproved
+                  );
                   return (
                     <tr key={key}>
                       <td>
@@ -202,7 +240,19 @@ export default function AdvisorApprovalsPage() {
                           : "—"}
                       </td>
                       <td>
-<StatusBadge status={row.status} />
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          {feeVerified ? (
+                            <Badge tone="success">
+                              <Check style={{ width: 11, height: 11, marginRight: 3, display: "inline" }} />
+                              Fee Paid
+                            </Badge>
+                          ) : (
+                            <Badge tone="warning">Pending</Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <StatusBadge status={row.status} />
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
@@ -221,6 +271,25 @@ export default function AdvisorApprovalsPage() {
                           >
                             <Activity style={{ width: 14, height: 14 }} />
                           </Button>
+
+                          {!feeVerified && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleVerifyFee(row.student.id, `${row.student.user.firstName} ${row.student.user.lastName}`)}
+                              disabled={feeVerifying === row.student.id}
+                              aria-label={`Approve fee for ${row.student.user.firstName}`}
+                              title="Approve student fee"
+                            >
+                              {feeVerifying === row.student.id ? (
+                                <ButtonSpinner />
+                              ) : (
+                                <CreditCard style={{ width: 13, height: 13 }} />
+                              )}
+                              Approve Fee
+                            </Button>
+                          )}
+
                           {isDecided(row) ? (
                             <span className="nd-cell-secondary" style={{ fontSize: 12.5 }}>
                               {new Date(row.updatedAt).toLocaleDateString("en-IN")}

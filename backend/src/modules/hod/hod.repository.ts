@@ -651,6 +651,9 @@ export const hodRepository = {
           where: { approverRole: { in: [Role.ADVISOR, Role.HOD] } },
           select: { approverRole: true, status: true, updatedAt: true },
         },
+        feeVerification: {
+          select: { advisorApproved: true, hodApproved: true },
+        },
       },
       orderBy: { registerNumber: "asc" },
       take: 500,
@@ -689,6 +692,7 @@ export const hodRepository = {
               registerNumber: true,
               classroom: { select: { id: true, name: true } },
               user: { select: { id: true, firstName: true, lastName: true, email: true } },
+              feeVerification: { select: { advisorApproved: true, hodApproved: true } },
             },
           },
         },

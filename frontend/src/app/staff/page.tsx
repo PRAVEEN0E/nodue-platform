@@ -132,9 +132,8 @@ export default function StaffDashboardPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
             {[
               { href: "/staff/classes", label: "Browse my classes", desc: `${classes.length} assigned` },
-              { href: "/staff/approvals", label: "Review pending", desc: `${counts.pending} awaiting` },
               { href: "/staff/subjects", label: "My subjects", desc: `${counts.subjects} assigned` },
-              { href: "/staff/students", label: "Students", desc: `${counts.students} in scope` },
+              { href: "/staff/approvals", label: "Student Approvals", desc: `${counts.pending} awaiting review` },
             ].map((l) => (
               <Link
                 key={l.href}

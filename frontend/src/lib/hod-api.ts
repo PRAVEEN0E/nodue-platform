@@ -276,12 +276,17 @@ export interface HodQueueStudent {
   registerNumber: string;
   classroom: { id: string; name: string };
   user: { id: string; firstName: string; lastName: string; email: string; isActive: boolean };
+  feeVerification?: {
+    verified: boolean;
+    advisorApproved: boolean;
+    hodApproved: boolean;
+  };
 }
 
 export interface HodPendingRow {
   student: HodQueueStudent;
   subjects: Array<{ id: string; code: string; name: string }>;
-  advisorDecision: "APPROVED";
+  advisorDecision: "APPROVED" | "PENDING" | "REJECTED";
   status: "PENDING";
 }
 
